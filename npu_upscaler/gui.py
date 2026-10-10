@@ -4,6 +4,7 @@ from pathlib import Path
 from threading import Event
 import os
 import subprocess
+import time
 
 from PySide6.QtCore import QThread, Signal, QSettings, QTimer
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFormLayout, QHBoxLayout,
@@ -21,16 +22,18 @@ class Worker(QThread):
     failed = Signal(str)
     cancelled = Signal()
 
-    def __init__(self, source: Path, model: Path, destination: Path):
+    def __init__(self, source: Path, model: Path, destination: Path,
+                 preview_seconds: int | None = None):
         super().__init__()
         self.source, self.model, self.destination = source, model, destination
+        self.preview_seconds = preview_seconds
         self.cancel_flag = Event()
 
     def run(self):
         try:
             frames = run_video(self.source, self.model, self.destination,
                                lambda done, total: self.progress_changed.emit(done, total or 0),
-                               self.cancel_flag)
+                               self.cancel_flag, preview_seconds=self.preview_seconds)
             self.succeeded.emit(frames)
         except JobCancelled:
             self.cancelled.emit()
@@ -84,6 +87,11 @@ class MainWindow(QMainWindow):
         self.model = self._picker(form, 'OpenVINO model XML', 'OpenVINO IR (*.xml)', False)
         self.destination = self._picker(form, 'Output MP4', 'MP4 (*.mp4)', True)
         layout.addLayout(form)
+        self._suggested_output = None
+        self.preview = QCheckBox('First 60 seconds only (quick quality test)')
+        layout.addWidget(self.preview)
+        self.preview.toggled.connect(self._suggest_output)
+        self.source.textChanged.connect(self._suggest_output)
         actions = QHBoxLayout()
         self.start_btn = QPushButton('Start NPU conversion')
         self.cancel_btn = QPushButton('Cancel')
@@ -132,6 +140,22 @@ class MainWindow(QMainWindow):
                 edit.setText(name)
         browse.clicked.connect(select)
         return edit
+
+    def _suggest_output(self, *_ignored):
+        """Change the suggested name only when the user has not edited it."""
+        current = self.destination.text()
+        if not self.source.text():
+            return
+        if current and current != self._suggested_output:
+            return
+        source = Path(self.source.text())
+        suffix = '_upscaled_preview60' if self.preview.isChecked() else '_upscaled'
+        suggestion = str(source.with_name(f'{source.stem}{suffix}.mp4'))
+        self._suggested_output = suggestion
+        self.destination.setText(suggestion)
+        if hasattr(self, 'start_btn'):
+            self.start_btn.setText('Start 60s preview' if self.preview.isChecked()
+                                   else 'Start NPU conversion')
 
     def _job_busy(self):
         return self.worker is not None and self.worker.isRunning()
@@ -200,7 +224,10 @@ class MainWindow(QMainWindow):
         if not all((self.source.text(), self.model.text(), self.destination.text())):
             QMessageBox.warning(self, 'Missing paths', 'Select input, model and output files.')
             return
-        self.worker = Worker(Path(self.source.text()), Path(self.model.text()), Path(self.destination.text()))
+        self.worker = Worker(Path(self.source.text()), Path(self.model.text()),
+                             Path(self.destination.text()),
+                             preview_seconds=60 if self.preview.isChecked() else None)
+        self._started_at = time.monotonic()
         self.worker.progress_changed.connect(self.update_progress)
         self.worker.succeeded.connect(lambda frames: self.finish(f'Completed: {frames} frames'))
         self.worker.failed.connect(lambda message: self.finish(f'Failed: {message}'))
@@ -225,6 +252,8 @@ class MainWindow(QMainWindow):
             self.status.setText('Cancelling after current NPU tile…')
 
     def finish(self, message):
+        if message.startswith('Completed') and hasattr(self, '_started_at'):
+            message += f' (elapsed {time.monotonic() - self._started_at:.1f}s)'
         self.start_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         self.bar.setRange(0, 1)
