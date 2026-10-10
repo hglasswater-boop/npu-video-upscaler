@@ -29,5 +29,5 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python scripts/upgrade_regression.py
+          python -m scripts.upgrade_regression
           if ($LASTEXITCODE -ne 0) { throw "Windows a1 -> a2 regression failed" }
