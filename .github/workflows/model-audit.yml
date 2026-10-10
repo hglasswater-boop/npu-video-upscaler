@@ -1,0 +1,80 @@
+name: Audit original BSRGANx2 model checkpoint
+on:
+  pull_request:
+    paths:
+      - .github/workflows/model-audit.yml
+      - scripts/build_bsrgan_ir.py
+      - scripts/network_rrdbnet.py
+      - tests/test_model_builder.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test offline audit contract before processing weights
+        run: |
+          python -m pip install numpy pytest
+          python -m pytest -q tests/test_model_builder.py
+      - name: Inspect authors' published original BSRGANx2 checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/cszn/KAIR/releases/download/v1.0/BSRGANx2.pth"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/BSRGANx2.pth" "$url"
+          actual_bytes=$(wc -c < "$RUNNER_TEMP/BSRGANx2.pth" | tr -d ' ')
+          test "$actual_bytes" = "66894171" || { echo "Checkpoint size changed"; exit 1; }
+          sha256sum "$RUNNER_TEMP/BSRGANx2.pth"
+          echo "Audit only: no deserialization, model conversion or redistribution performed."
+
+  build:
+    needs: audit
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install model conversion dependencies
+        run: python -m pip install -r scripts/model-build-requirements.txt
+      - name: Fetch verified official BSRGANx2 weights
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/cszn/KAIR/releases/download/v1.0/BSRGANx2.pth'
+          $file = Join-Path $env:RUNNER_TEMP 'BSRGANx2.pth'
+          Invoke-WebRequest -Uri $url -OutFile $file
+          $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = '614f68bcafcf123a1ea51cc75ae5741640a8b1d49dd75757ad3ad531f772c736'
+          if ($actual -ne $expected) { throw 'Upstream checkpoint changed: hash mismatch' }
+          if ((Get-Item $file).Length -ne 66894171) { throw 'Checkpoint size mismatch' }
+          "WEIGHTS_FILE=$file" >> $env:GITHUB_ENV
+      - name: Convert to static 2x INT8 OpenVINO IR with CPU-only validation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m scripts.build_bsrgan_ir --checkpoint $env:WEIGHTS_FILE --sha256 614f68bcafcf123a1ea51cc75ae5741640a8b1d49dd75757ad3ad531f772c736 --output model-output
+          if ($LASTEXITCODE -ne 0) { throw 'BSRGAN IR conversion failed' }
+          Get-Content model-output/model-manifest.json
+          if (!(Test-Path model-output/BSRGANx2.xml) -or !(Test-Path model-output/BSRGANx2.bin)) { throw 'Missing converted model' }
+      - name: Bundle license notice (no original PyTorch checkpoint)
+        shell: pwsh
+        run: |
+          Copy-Item third_party/BSRGAN-LICENSE.txt model-output/BSRGAN-LICENSE.txt
+          Get-ChildItem model-output | Select-Object Name,Length
+      - name: Upload experimental converted model for actual NPU smoke tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-BSRGANx2-OpenVINO-INT8-NPU-UNVERIFIED
+          path: model-output/*
+          retention-days: 7
+          if-no-files-found: error

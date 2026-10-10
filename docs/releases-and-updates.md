@@ -47,3 +47,11 @@ The automated Windows runner must download **actual published** v0.2.0a1 and v0.
 5. A corrupted/broken SHA-256 is already rejected by unit tests; updater must never trigger an installer if verification fails. A live device interactive update through GUI is still **not tested by CI** and remains a manual smoke test.
 
 For repeatability, pinned release artifact hashes come from published immutable-versioned assets and are documented in the workflow. Network/download errors fail the CI job. This workflow is manually triggerable to avoid repeated ~200 MB binary downloads on every commit and runs on a real Windows hosted runner (VM), **not** the Core Ultra 5 125H hardware.
+
+## Experimental SR model Release asset (v0.2.0a3+)
+
+The Windows build includes a separate **BSRGANx2-OpenVINO-INT8.zip** in GitHub Release assets (not the application installer), plus its entry in SHA256SUMS.txt. The CI build downloads checkpoint bytes only from the author's HTTPS GitHub Release, requires the pinned 64-digit SHA-256, converts them using vendored RRDBNet plus NNCF, verifies static model dimensions and CPU OpenVINO compile, and bundles Apache-2.0 license notice with the IR and manifest. The EXE must not include PyTorch or NNCF.
+
+On first launch, if no cached model exists, the GUI offers an explicit opt-in download. It selects only this repository's exact named Release asset and validated GitHub-published digest/URL; downloads asynchronously, verifies SHA-256, rejects unsupported archive entries, compares internal IR checksums, then attempts OpenVINO NPU-only compilation. Only a successful NPU compile installs/auto-selects the model in the per-user cache. Declining the opt-in disables repeated startup prompts; the manual button stays available.
+
+**Alpha warning:** model compilation on the Core Ultra 5 125H and its visual quality/speed have not been physically measured. The extra model ZIP allows real-device testing but is not certification of reliable production use. If NPU compilation fails, app retains model-less state and reports the error; no silent CPU fallback.

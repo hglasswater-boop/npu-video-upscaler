@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QFormLayout, QHBoxLayo
                                QProgressBar, QPushButton, QVBoxLayout, QWidget, QCheckBox)
 
 from .pipeline import JobCancelled, run_video
+from .model_packages import find_prepared_model, install_model_zip
+from .model_download import choose_model_release
 from .updates import choose_update, download_installer, fetch_releases
 from . import __version__
 
@@ -71,6 +73,37 @@ class UpdateDownloadWorker(QThread):
             self.error.emit(str(exc))
 
 
+class ModelInstallWorker(QThread):
+    completed = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, package: Path):
+        super().__init__()
+        self.package = package
+
+    def run(self):
+        try:
+            self.completed.emit(str(install_model_zip(self.package)))
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class ModelDownloadWorker(QThread):
+    completed = Signal(str)
+    failed = Signal(str)
+
+    def run(self):
+        try:
+            release = choose_model_release(fetch_releases())
+            if release is None:
+                raise RuntimeError('No verified model ZIP published in project Releases yet')
+            directory = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'NpuVideoUpscaler' / 'Downloads'
+            archive = download_installer(release, directory)
+            self.completed.emit(str(install_model_zip(archive)))
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -79,12 +112,21 @@ class MainWindow(QMainWindow):
         self.worker = None
         self.update_check_worker = None
         self.update_download_worker = None
+        self.model_setup_worker = None
+        self.model_download_worker = None
         self.pending_update = None
         self.settings = QSettings('NpuVideoUpscaler', 'NpuVideoUpscaler')
         layout = QVBoxLayout()
         form = QFormLayout()
         self.source = self._picker(form, 'Input MP4 / MKV', 'Video files (*.mp4 *.mkv)', False)
         self.model = self._picker(form, 'OpenVINO model XML', 'OpenVINO IR (*.xml)', False)
+        self.model_setup_btn = QPushButton('Install model ZIP')
+        form.addRow('AI model setup', self.model_setup_btn)
+        self.model_download_btn = QPushButton('Download AI model')
+        form.addRow('Trusted GitHub model', self.model_download_btn)
+        prepared_model = find_prepared_model()
+        if prepared_model:
+            self.model.setText(str(prepared_model))
         self.destination = self._picker(form, 'Output MP4', 'MP4 (*.mp4)', True)
         layout.addLayout(form)
         self._suggested_output = None
@@ -120,6 +162,10 @@ class MainWindow(QMainWindow):
         self.start_btn.clicked.connect(self.start_job)
         self.cancel_btn.clicked.connect(self.cancel_job)
         self.update_btn.clicked.connect(self.check_updates)
+        self.model_setup_btn.clicked.connect(self.install_model_package_dialog)
+        self.model_download_btn.clicked.connect(self.download_model_prompt)
+        if not prepared_model and self.settings.value('promptModelSetup', True, type=bool):
+            QTimer.singleShot(2600, self.download_model_prompt)
         if self.auto_update.isChecked():
             QTimer.singleShot(1500, self.check_updates)
 
@@ -156,6 +202,69 @@ class MainWindow(QMainWindow):
         suggestion = str(source.with_name(f'{source.stem}{suffix}.mp4'))
         self._suggested_output = suggestion
         self.destination.setText(suggestion)
+    def _model_busy(self):
+        return ((self.model_setup_worker and self.model_setup_worker.isRunning())
+                or (self.model_download_worker and self.model_download_worker.isRunning()))
+
+    def download_model_prompt(self):
+        if self._job_busy() or self._model_busy():
+            return
+        answer = QMessageBox.question(
+            self, 'Set up AI super-resolution?',
+            'Download the experimental BSRGANx2 model from this project GitHub Releases?\\n'
+            'The download is SHA-256 verified and the model is installed ONLY after\\n'
+            'successful Intel NPU compilation. No CPU/GPU fallback is used.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            self.settings.setValue('promptModelSetup', False)
+            return
+        self.model_download_worker = ModelDownloadWorker()
+        self.model_download_worker.completed.connect(self._model_ready)
+        self.model_download_worker.failed.connect(self._model_setup_failed)
+        self.start_btn.setEnabled(False)
+        self.model_download_btn.setEnabled(False)
+        self.model_setup_btn.setEnabled(False)
+        self.status.setText('Downloading verified GitHub model and compiling on NPU…')
+        self.model_download_worker.start()
+
+    def install_model_package_dialog(self):
+        if self._job_busy() or (self.model_setup_worker and self.model_setup_worker.isRunning()):
+            QMessageBox.warning(self, 'Model setup busy', 'Finish the current operation first.')
+            return
+        archive, _ = QFileDialog.getOpenFileName(
+            self, 'Select trusted NPU model package', '', 'Model ZIP (*.zip)')
+        if not archive:
+            return
+        answer = QMessageBox.question(
+            self, 'Trust model package?',
+            'Only use model ZIPs from the NPU Video Upscaler official build artifacts.\\n'
+            'The included checksums detect corruption but do not prove who created the ZIP.\\n'
+            'Validate and install this model with the Intel NPU?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.model_setup_worker = ModelInstallWorker(Path(archive))
+        self.model_setup_worker.completed.connect(self._model_ready)
+        self.model_setup_worker.failed.connect(self._model_setup_failed)
+        self.model_setup_btn.setEnabled(False)
+        self.start_btn.setEnabled(False)
+        self.status.setText('Validating model and compiling for NPU…')
+        self.model_setup_worker.start()
+
+    def _model_ready(self, model_path):
+        self.model.setText(model_path)
+        self.start_btn.setEnabled(True)
+        self.model_setup_btn.setEnabled(True)
+        self.model_download_btn.setEnabled(True)
+        self.status.setText('Model installed and compiled for NPU. Select video to convert.')
+
+    def _model_setup_failed(self, message):
+        self.start_btn.setEnabled(True)
+        self.model_setup_btn.setEnabled(True)
+        self.model_download_btn.setEnabled(True)
+        self.status.setText(f'Model setup failed: {message}')
+        QMessageBox.warning(self, 'NPU model setup failed', message)
+
     def _job_busy(self):
         return self.worker is not None and self.worker.isRunning()
 
@@ -218,6 +327,9 @@ class MainWindow(QMainWindow):
         QApplication.instance().quit()
 
     def start_job(self):
+        if self._model_busy():
+            QMessageBox.warning(self, 'Model setup busy', 'Wait for NPU validation to finish.')
+            return
         if self.worker and self.worker.isRunning():
             return
         if not all((self.source.text(), self.model.text(), self.destination.text())):
@@ -267,7 +379,8 @@ class MainWindow(QMainWindow):
             self.cancel_job()
             event.ignore()
         elif ((self.update_check_worker and self.update_check_worker.isRunning())
-              or (self.update_download_worker and self.update_download_worker.isRunning())):
+              or (self.update_download_worker and self.update_download_worker.isRunning())
+              or self._model_busy()):
             self.status.setText('Waiting for update request to finish…')
             event.ignore()
         else:
