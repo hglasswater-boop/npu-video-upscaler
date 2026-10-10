@@ -300,7 +300,7 @@ class MainWindow(QMainWindow):
     def _media_failed(self, message):
         self.media_setup_btn.setEnabled(True)
         self.start_btn.setEnabled(True)
-        self.status.setText(f'FFmpegの設定に失敗: {message}')
+        self.status.setText('FFmpegの設定に失敗しました。詳細はエラー通知で確認できます。')
         QMessageBox.warning(self, 'FFmpegの設定に失敗', message)
 
     def _model_busy(self):
@@ -364,7 +364,7 @@ class MainWindow(QMainWindow):
         self.start_btn.setEnabled(True)
         self.model_setup_btn.setEnabled(True)
         self.model_download_btn.setEnabled(True)
-        self.status.setText(f'モデルの設定に失敗: {message}')
+        self.status.setText('AIモデルの設定に失敗しました。詳細はエラー通知で確認できます。')
         QMessageBox.warning(self, 'NPUモデルの設定に失敗', message)
 
     def _job_busy(self):
@@ -473,6 +473,9 @@ class MainWindow(QMainWindow):
             self.status.setText('現在のNPU処理が終わり次第キャンセルします…')
 
     def finish(self, message):
+        if message.startswith('失敗：') and len(message) > 160:
+            QMessageBox.warning(self, '動画変換に失敗', message)
+            message = '動画変換に失敗しました。詳細はエラー通知で確認できます。'
         if message.startswith('完了：') and hasattr(self, '_started_at'):
             message += f'（処理時間：{time.monotonic() - self._started_at:.1f}秒）'
         self.start_btn.setEnabled(True)
