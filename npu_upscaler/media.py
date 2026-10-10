@@ -93,7 +93,7 @@ def probe_video(source: Path) -> VideoInfo:
 def decoder_command(source: str | Path) -> list[str]:
     return ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
             '-noautorotate', '-i', str(source), '-map', '0:v:0', '-an', '-sn', '-dn',
-            '-vsync', '0', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1']
+            '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1']
 
 
 def encoder_command(source: str | Path, destination: str | Path, info: VideoInfo, scale: int) -> list[str]:

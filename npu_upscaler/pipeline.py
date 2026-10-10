@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 
 import numpy as np
 
@@ -48,6 +49,18 @@ def _read_frame(stream, size: int) -> bytes | None:
     if len(chunk) != size:
         raise RuntimeError('Truncated frame from FFmpeg decoder')
     return chunk
+
+
+def _remove_temporary(path: Path) -> None:
+    """Allow Windows a bounded interval to release FFmpeg's output handle."""
+    for attempt in range(20):
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(0.1)
 
 
 def _stop(process) -> None:
@@ -122,4 +135,4 @@ def run_video(source: Path, model: Path, destination: Path,
         finally:
             _stop(decoder)
             _stop(encoder)
-            temporary.unlink(missing_ok=True)
+            _remove_temporary(temporary)

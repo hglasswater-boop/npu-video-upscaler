@@ -11,6 +11,6 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install test dependencies
-        run: python -m pip install numpy pytest
+        run: python -m pip install numpy pytest packaging
       - name: Run pure contract tests (no NPU hardware)
         run: python -m pytest -q
