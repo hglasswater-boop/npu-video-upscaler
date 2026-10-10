@@ -41,9 +41,20 @@ class QMessageBox(QtMessageBox):
     def _notice(parent, title, message, severity):
         dialog = QtMessageBox(parent)
         dialog.setWindowTitle(title)
-        dialog.setText(message)
+        if len(message) > 160:
+            dialog.setText("処理を完了できませんでした。詳しい原因は「詳細を表示」で確認できます。")
+            dialog.setDetailedText(message)
+        else:
+            dialog.setText(message)
         dialog.setIcon(severity)
+        dialog.setMaximumWidth(600)
+        dialog.setStyleSheet("QLabel#qt_msgbox_label { max-width: 490px; }")
         dialog.addButton("閉じる", QtMessageBox.ButtonRole.AcceptRole)
+        for button in dialog.findChildren(QPushButton):
+            if button.text() == "Show Details...":
+                button.setText("詳細を表示")
+            elif button.text() == "Hide Details...":
+                button.setText("詳細を隠す")
         dialog.exec()
 
     @staticmethod
