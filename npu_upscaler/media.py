@@ -90,18 +90,37 @@ def probe_video(source: Path) -> VideoInfo:
         raise MediaError(f'ffprobe could not inspect video: {exc}') from exc
 
 
-def decoder_command(source: str | Path) -> list[str]:
-    return ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+def preview_frame_cap(fps: Fraction) -> int:
+    """Use floor to ensure encoded nominal video duration does not exceed 60s."""
+    cap = (60 * fps.numerator) // fps.denominator
+    if cap < 1:
+        raise MediaError('Frame rate too low for a 60-second preview')
+    return cap
+
+
+def decoder_command(source: str | Path, max_frames: int | None = None) -> list[str]:
+    args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
             '-noautorotate', '-i', str(source), '-map', '0:v:0', '-an', '-sn', '-dn',
-            '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1']
+            '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24']
+    if max_frames is not None:
+        if type(max_frames) is not int or max_frames < 1:
+            raise ValueError('Maximum frame count must be positive')
+        args += ['-frames:v', str(max_frames)]
+    return args + ['pipe:1']
 
 
-def encoder_command(source: str | Path, destination: str | Path, info: VideoInfo, scale: int) -> list[str]:
+def encoder_command(source: str | Path, destination: str | Path, info: VideoInfo,
+                    scale: int, max_duration: int | None = None) -> list[str]:
     if scale not in (2, 4):
         raise ValueError('Scale must be 2 or 4')
-    return ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+    args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
             '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-video_size', f'{info.width * scale}x{info.height * scale}',
             '-framerate', f'{info.fps.numerator}/{info.fps.denominator}', '-i', 'pipe:0',
             '-i', str(source), '-map', '0:v:0', '-map', '1:a?',
             '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p',
-            '-c:a', 'copy', '-movflags', '+faststart', str(destination)]
+            '-c:a', 'copy', '-movflags', '+faststart']
+    if max_duration is not None:
+        if type(max_duration) is not int or max_duration < 1:
+            raise ValueError('Maximum duration must be a positive integer')
+        args += ['-t', str(max_duration)]
+    return args + [str(destination)]
