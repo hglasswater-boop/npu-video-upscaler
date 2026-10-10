@@ -136,7 +136,7 @@ def test_build_cannot_distribute_ffmpeg_binaries():
 
 def test_release_installer_invokes_first_run_app_setup():
     installer = (Path(__file__).resolve().parents[1] / 'installer.iss').read_text(encoding='utf-8')
-    assert 'Launch NPU Video Upscaler and set up FFmpeg' in installer
+    assert 'インストール後にアプリを起動してFFmpegを設定する' in installer
     assert 'postinstall' in installer
 
 
