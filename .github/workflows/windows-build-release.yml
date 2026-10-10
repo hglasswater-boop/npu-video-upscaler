@@ -197,6 +197,8 @@ jobs:
           } | Set-Content -Encoding ascii "dist/release/SHA256SUMS.txt"
 
       - uses: actions/upload-artifact@v4
+        # Public PR artifacts are downloadable distributions too: require GPL compliance.
+        if: vars.FFMPEG_GPL_CORRESPONDING_SOURCE_READY == 'true'
         with:
           name: windows-alpha-${{ steps.version.outputs.app_version }}
           path: dist/release/*
