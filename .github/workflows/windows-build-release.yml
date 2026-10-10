@@ -95,7 +95,7 @@ jobs:
             'Distribution requires complete corresponding source and license notices.'
             'See: https://ffmpeg.org/legal.html'
           ) | Set-Content -Encoding utf8 (Join-Path $dest 'FFMPEG-NOTICE.txt')
-          Invoke-WebRequest -Uri 'https://www.gnu.org/licenses/gpl-3.0.txt' -OutFile (Join-Path $dest 'GPL-3.0.txt')
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/FFmpeg/FFmpeg/n9.0/COPYING.GPLv3' -OutFile (Join-Path $dest 'GPL-3.0.txt')
           if ((Get-Item (Join-Path $dest 'GPL-3.0.txt')).Length -lt 30000) {
             throw 'FFmpeg GPLv3 license text is missing'
           }
