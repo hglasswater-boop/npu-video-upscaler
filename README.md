@@ -46,6 +46,12 @@ python -m pytest -q
 
 See [requirements](docs/requirements.md) and [architecture](docs/architecture.md).
 
+## First-minute quality test (v0.2.0a2)
+
+Choose **First 60 seconds only (quick quality test)** in the Windows GUI to upscale just the first minute using the selected **NPU-only** model and save a separate `_upscaled_preview60.mp4`. This is useful for judging visual quality and elapsed conversion time before running the complete file. Full-length export remains the default. Source shorter than 60 seconds is exported without padding.
+
+The preview pipeline limits decoded **video frames** to at most `floor(60 × source_fps)` and caps copied source audio at 60 seconds. Fractions (29.97fps) are handled exactly; the final audio packet may end within approximately one encoded audio frame after the 60-second mark. Source timelines must satisfy the nominal constant-FPS limitations documented in [quick preview spec](docs/quick-preview.md). NPU-compatible model and FFmpeg remain prerequisites.
+
 ## Experimental Windows installer and built-in updates
 
 **Alpha version v0.2.0a1** adds a Windows x64 per-user Inno Setup installer and portable ZIP. After CI completes and the change is merged to main, packages are published under [GitHub Releases](https://github.com/hglasswater-boop/npu-video-upscaler/releases). PR builds provide temporary [GitHub Actions artifacts](https://github.com/hglasswater-boop/npu-video-upscaler/actions) only. **An alpha installer is a testing convenience, not evidence that NPU inference is supported on your 125H yet.**
