@@ -191,10 +191,11 @@ class MainWindow(QMainWindow):
         self.driver_help_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(
             'https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html'
         )))
-        if find_installed_media_tools() is None:
-            QTimer.singleShot(600, self.download_ffmpeg_prompt)
-        elif not prepared_model and self.settings.value('promptModelSetup', True, type=bool):
-            QTimer.singleShot(2600, self.download_model_prompt)
+        if os.environ.get('NPU_UPSCALER_SMOKE_TEST') != '1':
+            if find_installed_media_tools() is None:
+                QTimer.singleShot(600, self.download_ffmpeg_prompt)
+            elif not prepared_model and self.settings.value('promptModelSetup', True, type=bool):
+                QTimer.singleShot(2600, self.download_model_prompt)
         if self.auto_update.isChecked():
             QTimer.singleShot(1500, self.check_updates)
 
