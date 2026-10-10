@@ -37,3 +37,26 @@ def test_cancel_raises():
     flag.set()
     with pytest.raises(JobCancelled):
         check_not_cancelled(flag)
+
+
+
+def test_windows_temporary_lock_release_retries(monkeypatch, tmp_path):
+    from pathlib import Path
+    from npu_upscaler.pipeline import _remove_temporary
+
+    target = tmp_path / 'locked.mp4'
+    target.write_bytes(b'incomplete export')
+    original = Path.unlink
+    attempts = []
+
+    def intermittent_lock(path, *args, **kwargs):
+        if path == target:
+            attempts.append(1)
+            if len(attempts) < 3:
+                raise PermissionError('Windows process still releasing handle')
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'unlink', intermittent_lock)
+    _remove_temporary(target)
+    assert len(attempts) == 3
+    assert not target.exists()
