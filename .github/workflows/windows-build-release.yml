@@ -27,11 +27,10 @@ jobs:
       - name: Fetch and verify FFmpeg for A/V regression tests
         shell: pwsh
         run: |
-          $base = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          $base = "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip"
           $zip = Join-Path $env:RUNNER_TEMP "ffmpeg-essentials.zip"
           Invoke-WebRequest -Uri $base -OutFile $zip
-          $expected = (Invoke-WebRequest -Uri "$base.sha256").Content.Trim().ToLowerInvariant()
-          if ($expected.Length -ne 64 -or $expected -match "[^a-f0-9]") { throw "Invalid upstream FFmpeg checksum" }
+          $expected = '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
           $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           $pinned = '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
           if ($actual -ne $expected -or $actual -ne $pinned) {
@@ -44,8 +43,6 @@ jobs:
           $bin = $probe.Directory.FullName
           if (!(Test-Path (Join-Path $bin "ffmpeg.exe"))) { throw "FFmpeg missing in verified archive" }
           "$bin" >> $env:GITHUB_PATH
-          "FFMPEG_VENDOR_BIN=$bin" >> $env:GITHUB_ENV
-          "FFMPEG_VENDOR_ARCHIVE_SHA256=$actual" >> $env:GITHUB_ENV
           $env:PATH = "$bin;$env:PATH"
           ffmpeg -version | Select-Object -First 1
           ffprobe -version | Select-Object -First 1
@@ -69,53 +66,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller packaging failed" }
           if (!(Test-Path "dist/NpuVideoUpscaler/NpuVideoUpscaler.exe")) { throw "Packaged executable is missing" }
 
-      - name: Stage verified FFmpeg binaries in application-private media-tools
+      - name: Test direct-from-publisher FFmpeg installation into user cache (not packaged)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $dest = 'dist/NpuVideoUpscaler/_internal/media-tools'
-          New-Item -ItemType Directory -Path $dest -Force | Out-Null
-          foreach ($name in @('ffmpeg.exe', 'ffprobe.exe')) {
-            $src = Join-Path $env:FFMPEG_VENDOR_BIN $name
-            if (!(Test-Path $src)) { throw "Missing vendor executable: $src" }
-            Copy-Item $src (Join-Path $dest $name)
+          python -c "from npu_upscaler.media_tools import install_vendor_media_tools; print(install_vendor_media_tools())"
+          if ($LASTEXITCODE -ne 0) { throw "Publisher-direct FFmpeg installation failed" }
+          $cache = Join-Path $env:LOCALAPPDATA 'NpuVideoUpscaler/MediaTools'
+          if (!(Test-Path $cache)) { throw "Per-user FFmpeg cache missing" }
+          if (Get-ChildItem -Path 'dist/NpuVideoUpscaler' -Filter ffmpeg.exe -Recurse) {
+            throw 'FFmpeg binary must not be redistributed in application package'
           }
-          $exe = Join-Path $dest 'ffmpeg.exe'
-          $probe = Join-Path $dest 'ffprobe.exe'
-          $encoders = & $exe -hide_banner -encoders 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0 -or $encoders -notmatch '\blibx264\b') {
-            throw 'Bundled FFmpeg does not offer required libx264 encoder'
-          }
-          & $probe -version | Select-Object -First 1
-          if ($LASTEXITCODE -ne 0) { throw 'Bundled ffprobe smoke failed' }
-          & $exe -buildconf | Set-Content -Path (Join-Path $dest 'ffmpeg-buildconf.txt')
-          @(
-            'This build uses FFmpeg binaries from gyan.dev.'
-            'Vendor: https://www.gyan.dev/ffmpeg/builds/'
-            "Vendor archive SHA256: $env:FFMPEG_VENDOR_ARCHIVE_SHA256"
-            'FFmpeg source: https://github.com/FFmpeg/FFmpeg/commit/946fcce07b'
-            'License: GPLv3 (static release essentials build with libx264).'
-            'Distribution requires complete corresponding source and license notices.'
-            'See: https://ffmpeg.org/legal.html'
-          ) | Set-Content -Encoding utf8 (Join-Path $dest 'FFMPEG-NOTICE.txt')
-          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/FFmpeg/FFmpeg/n9.0/COPYING.GPLv3' -OutFile (Join-Path $dest 'GPL-3.0.txt')
-          if ((Get-Item (Join-Path $dest 'GPL-3.0.txt')).Length -lt 30000) {
-            throw 'FFmpeg GPLv3 license text is missing'
-          }
-
-      - name: Verify media tools run without external FFmpeg on PATH
-        shell: pwsh
-        run: |
-          $tools = (Resolve-Path 'dist/NpuVideoUpscaler/_internal/media-tools').Path
-          $original = $env:PATH
-          try {
-            $env:PATH = "$env:WINDIR\System32;$env:WINDIR"
-            & (Join-Path $tools 'ffmpeg.exe') -version | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw 'Private FFmpeg failed with sanitized PATH' }
-            & (Join-Path $tools 'ffprobe.exe') -version | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw 'Private ffprobe failed with sanitized PATH' }
-          } finally {
-            $env:PATH = $original
+          if (Get-ChildItem -Path 'dist/NpuVideoUpscaler' -Filter ffprobe.exe -Recurse) {
+            throw 'ffprobe binary must not be redistributed in application package'
           }
 
       - name: Smoke test frozen executable
@@ -200,8 +163,6 @@ jobs:
           } | Set-Content -Encoding ascii "dist/release/SHA256SUMS.txt"
 
       - uses: actions/upload-artifact@v4
-        # Public PR artifacts are downloadable distributions too: require GPL compliance.
-        if: vars.FFMPEG_GPL_CORRESPONDING_SOURCE_READY == 'true'
         with:
           name: windows-alpha-${{ steps.version.outputs.app_version }}
           path: dist/release/*
@@ -209,7 +170,7 @@ jobs:
           retention-days: 14
 
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FFMPEG_GPL_CORRESPONDING_SOURCE_READY == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: package
     runs-on: ubuntu-latest
     permissions:
