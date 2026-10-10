@@ -13,6 +13,14 @@ Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with
 - 8-bit H.264 `libx264` MP4 output and stream copy of compatible AAC/MP3/AC-3/E-AC-3/ALAC audio. A silent source yields silent output.
 - Temporary output and cleanup on failure/cancel; no server uploads.
 
+## 使い方：3ステップの日本語画面（v0.2.0a5）
+
+1. **① 動画を選ぶ**：「参照…」からMP4/MKVを選択します。保存先MP4は自動で提案され、変更もできます。
+2. **② 初回準備**：「FFmpegをダウンロード」で動画読み書きツールを配布元から取得し、「AIモデルをダウンロード」でBSRGANx2をNPUで検証します。両方とも初回だけで、設定済みかどうか画面で確認できます。
+3. **③ 変換する**：最初は **「先頭60秒だけ変換して画質を確認」** にチェックを入れて「先頭60秒を試す」を押してください。仕上がりを確認したらチェックを外し、全編変換します。
+
+手動のモデルXML指定やNPUドライバー案内は**「詳細設定・手動モデル指定」**から開けます。長いパスは入力欄内で扱い、長いエラー内容は「詳細を表示」から確認できます。画面横幅は840px以下に制限しています。
+
 ## 日本語UI・FFmpegセットアップの修正（v0.2.0a5）
 
 Windows 11で確認された `[WinError 5] アクセスが拒否されました`（FFmpegの一時フォルダーを移動できない問題）に対応しました。一時フォルダー内での実行確認を廃止し、**最終保存先へ移動してから**FFmpeg・ffprobeを起動検証します。移動時の一時的なファイルロックには再試行し、失敗中の不完全なキャッシュは利用しません。
