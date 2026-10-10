@@ -41,6 +41,8 @@ jobs:
           $bin = $probe.Directory.FullName
           if (!(Test-Path (Join-Path $bin "ffmpeg.exe"))) { throw "FFmpeg missing in verified archive" }
           "$bin" >> $env:GITHUB_PATH
+          "FFMPEG_VENDOR_BIN=$bin" >> $env:GITHUB_ENV
+          "FFMPEG_VENDOR_ARCHIVE_SHA256=$actual" >> $env:GITHUB_ENV
           $env:PATH = "$bin;$env:PATH"
           ffmpeg -version | Select-Object -First 1
           ffprobe -version | Select-Object -First 1
@@ -63,6 +65,52 @@ jobs:
           python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all openvino --name NpuVideoUpscaler launcher.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller packaging failed" }
           if (!(Test-Path "dist/NpuVideoUpscaler/NpuVideoUpscaler.exe")) { throw "Packaged executable is missing" }
+
+      - name: Stage verified FFmpeg binaries in application-private media-tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dest = 'dist/NpuVideoUpscaler/_internal/media-tools'
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          foreach ($name in @('ffmpeg.exe', 'ffprobe.exe')) {
+            $src = Join-Path $env:FFMPEG_VENDOR_BIN $name
+            if (!(Test-Path $src)) { throw "Missing vendor executable: $src" }
+            Copy-Item $src (Join-Path $dest $name)
+          }
+          $exe = Join-Path $dest 'ffmpeg.exe'
+          $probe = Join-Path $dest 'ffprobe.exe'
+          $encoders = & $exe -hide_banner -encoders 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0 -or $encoders -notmatch '\blibx264\b') {
+            throw 'Bundled FFmpeg does not offer required libx264 encoder'
+          }
+          & $probe -version | Select-Object -First 1
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled ffprobe smoke failed' }
+          & $exe -buildconf | Set-Content -Path (Join-Path $dest 'ffmpeg-buildconf.txt')
+          @"
+          This build uses independently provided FFmpeg programs from gyan.dev.
+          Vendor: https://www.gyan.dev/ffmpeg/builds/
+          Vendor archive SHA256: $env:FFMPEG_VENDOR_ARCHIVE_SHA256
+          FFmpeg source: https://github.com/FFmpeg/FFmpeg/commit/946fcce07b
+          License: GPLv3 (static release essentials build with libx264).
+          Redistribution requires *complete corresponding source* and license
+          obligations, including the external dependencies. Refer to
+          https://ffmpeg.org/legal.html and repository docs/bundled-media-tools.md.
+          "@ | Set-Content -Encoding utf8 (Join-Path $dest 'FFMPEG-NOTICE.txt')
+
+      - name: Verify media tools run without external FFmpeg on PATH
+        shell: pwsh
+        run: |
+          $tools = (Resolve-Path 'dist/NpuVideoUpscaler/_internal/media-tools').Path
+          $original = $env:PATH
+          try {
+            $env:PATH = "$env:WINDIR\System32;$env:WINDIR"
+            & (Join-Path $tools 'ffmpeg.exe') -version | Select-Object -First 1
+            if ($LASTEXITCODE -ne 0) { throw 'Private FFmpeg failed with sanitized PATH' }
+            & (Join-Path $tools 'ffprobe.exe') -version | Select-Object -First 1
+            if ($LASTEXITCODE -ne 0) { throw 'Private ffprobe failed with sanitized PATH' }
+          } finally {
+            $env:PATH = $original
+          }
 
       - name: Smoke test frozen executable
         shell: pwsh
