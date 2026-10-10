@@ -9,7 +9,7 @@ import time
 from PySide6.QtCore import QThread, Signal, QSettings, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFormLayout, QHBoxLayout,
-                               QLabel, QLineEdit, QMainWindow, QMessageBox,
+                               QLabel, QLineEdit, QMainWindow, QMessageBox as QtMessageBox,
                                QProgressBar, QPushButton, QVBoxLayout, QWidget, QCheckBox)
 
 from .pipeline import JobCancelled, run_video
@@ -19,6 +19,40 @@ from .model_packages import find_prepared_model, install_model_zip
 from .model_download import choose_model_release
 from .updates import choose_update, download_installer, fetch_releases
 from . import __version__
+
+
+class QMessageBox(QtMessageBox):
+    """Japanese actions even when the Qt Japanese translation pack is absent."""
+
+    @staticmethod
+    def question(parent, title, message, *args):
+        dialog = QtMessageBox(parent)
+        dialog.setWindowTitle(title)
+        dialog.setText(message)
+        dialog.setIcon(QtMessageBox.Icon.Question)
+        yes = dialog.addButton("はい", QtMessageBox.ButtonRole.YesRole)
+        dialog.addButton("いいえ", QtMessageBox.ButtonRole.NoRole)
+        dialog.setDefaultButton(yes)
+        dialog.exec()
+        return (QtMessageBox.StandardButton.Yes if dialog.clickedButton() is yes
+                else QtMessageBox.StandardButton.No)
+
+    @staticmethod
+    def _notice(parent, title, message, severity):
+        dialog = QtMessageBox(parent)
+        dialog.setWindowTitle(title)
+        dialog.setText(message)
+        dialog.setIcon(severity)
+        dialog.addButton("閉じる", QtMessageBox.ButtonRole.AcceptRole)
+        dialog.exec()
+
+    @staticmethod
+    def warning(parent, title, message):
+        QMessageBox._notice(parent, title, message, QtMessageBox.Icon.Warning)
+
+    @staticmethod
+    def critical(parent, title, message):
+        QMessageBox._notice(parent, title, message, QtMessageBox.Icon.Critical)
 
 
 class Worker(QThread):
@@ -125,7 +159,7 @@ class MediaDownloadWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f'NPU Video Upscaler v{__version__} — experimental')
+        self.setWindowTitle(f'NPU Video Upscaler v{__version__} — 開発版')
         self.resize(640, 260)
         self.worker = None
         self.update_check_worker = None
@@ -137,36 +171,36 @@ class MainWindow(QMainWindow):
         self.settings = QSettings('NpuVideoUpscaler', 'NpuVideoUpscaler')
         layout = QVBoxLayout()
         form = QFormLayout()
-        self.source = self._picker(form, 'Input MP4 / MKV', 'Video files (*.mp4 *.mkv)', False)
-        self.model = self._picker(form, 'OpenVINO model XML', 'OpenVINO IR (*.xml)', False)
-        self.model_setup_btn = QPushButton('Install model ZIP')
-        form.addRow('AI model setup', self.model_setup_btn)
-        self.media_setup_btn = QPushButton('Download FFmpeg from publisher')
-        form.addRow('Media tools', self.media_setup_btn)
-        self.driver_help_btn = QPushButton('Intel NPU driver help')
-        form.addRow('NPU driver', self.driver_help_btn)
-        self.model_download_btn = QPushButton('Download AI model')
-        form.addRow('Trusted GitHub model', self.model_download_btn)
+        self.source = self._picker(form, '入力動画（MP4 / MKV）', '動画ファイル (*.mp4 *.mkv)', False)
+        self.model = self._picker(form, 'OpenVINOモデルXML', 'OpenVINO IR (*.xml)', False)
+        self.model_setup_btn = QPushButton('モデルZIPをインストール')
+        form.addRow('AIモデルの設定', self.model_setup_btn)
+        self.media_setup_btn = QPushButton('FFmpegをダウンロード')
+        form.addRow('動画処理ツール', self.media_setup_btn)
+        self.driver_help_btn = QPushButton('Intel NPUドライバーの案内')
+        form.addRow('NPUドライバー', self.driver_help_btn)
+        self.model_download_btn = QPushButton('AIモデルをダウンロード')
+        form.addRow('公式AIモデル', self.model_download_btn)
         prepared_model = find_prepared_model()
         if prepared_model:
             self.model.setText(str(prepared_model))
-        self.destination = self._picker(form, 'Output MP4', 'MP4 (*.mp4)', True)
+        self.destination = self._picker(form, '出力動画（MP4）', 'MP4 (*.mp4)', True)
         layout.addLayout(form)
         self._suggested_output = None
-        self.preview = QCheckBox('First 60 seconds only (quick quality test)')
+        self.preview = QCheckBox('先頭60秒だけ変換して画質を確認')
         layout.addWidget(self.preview)
         self.preview.toggled.connect(self._suggest_output)
         self.source.textChanged.connect(self._suggest_output)
         actions = QHBoxLayout()
-        self.start_btn = QPushButton('Start NPU conversion')
-        self.cancel_btn = QPushButton('Cancel')
+        self.start_btn = QPushButton('NPUで変換を開始')
+        self.cancel_btn = QPushButton('キャンセル')
         self.cancel_btn.setEnabled(False)
         actions.addWidget(self.start_btn)
         actions.addWidget(self.cancel_btn)
         layout.addLayout(actions)
         update_actions = QHBoxLayout()
-        self.update_btn = QPushButton('Check for updates')
-        self.auto_update = QCheckBox('Check for updates on startup')
+        self.update_btn = QPushButton('更新を確認')
+        self.auto_update = QCheckBox('起動時に更新を確認')
         self.auto_update.setChecked(self.settings.value('autoCheckUpdates', True, type=bool))
         self.auto_update.toggled.connect(
             lambda checked: self.settings.setValue('autoCheckUpdates', checked))
@@ -176,7 +210,7 @@ class MainWindow(QMainWindow):
         self.bar = QProgressBar()
         self.bar.setRange(0, 1)
         self.bar.setValue(0)
-        self.status = QLabel('Ready. Requires preconverted NPU-compatible OpenVINO IR.')
+        self.status = QLabel('準備完了。NPU対応モデルを選択してください。')
         layout.addWidget(self.bar)
         layout.addWidget(self.status)
         wrapper = QWidget()
@@ -201,7 +235,7 @@ class MainWindow(QMainWindow):
 
     def _picker(self, form, label, file_filter, save):
         edit = QLineEdit()
-        browse = QPushButton('Browse…')
+        browse = QPushButton('参照…')
         row = QHBoxLayout()
         row.addWidget(edit)
         row.addWidget(browse)
@@ -220,8 +254,8 @@ class MainWindow(QMainWindow):
     def _suggest_output(self, *_ignored):
         """Change the suggested name only when the user has not edited it."""
         if hasattr(self, 'start_btn'):
-            self.start_btn.setText('Start 60s preview' if self.preview.isChecked()
-                                   else 'Start NPU conversion')
+            self.start_btn.setText('先頭60秒を試す' if self.preview.isChecked()
+                                   else 'NPUで変換を開始')
         current = self.destination.text()
         if not self.source.text():
             return
@@ -239,23 +273,23 @@ class MainWindow(QMainWindow):
         if self._job_busy() or self._media_busy() or self._model_busy():
             return
         if find_installed_media_tools():
-            self.status.setText('FFmpeg and ffprobe are installed and verified.')
+            self.status.setText('FFmpegとffprobeは設定済みです。')
             return
         answer = QMessageBox.question(
-            self, 'Set up FFmpeg and ffprobe?',
-            'Download FFmpeg 9.0.2 directly from GyanD on GitHub (~115 MB)?\n'
-            'The publisher build is GPLv3: https://ffmpeg.org/legal.html\n'
-            'The app verifies its pinned SHA-256 and stores tools only in local app data. '
-            'No administrator privileges or PATH changes are needed.',
+            self, 'FFmpegとffprobeのセットアップ',
+            'GitHubの配布元（GyanD）からFFmpeg 9.0.2（約115MB）をダウンロードしますか？\n'
+            '配布元のビルドはGPLv3ライセンスです： https://ffmpeg.org/legal.html\n'
+            'SHA-256を検証し、アプリ専用のユーザーフォルダーに保存します。 '
+            '管理者権限やPATH設定の変更は不要です。',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if answer != QMessageBox.StandardButton.Yes:
-            self.status.setText('FFmpeg not installed. Use Download FFmpeg before converting.')
+            self.status.setText('FFmpegが未設定です。変換前に「FFmpegをダウンロード」を押してください。')
             return
         self.media_download_worker = MediaDownloadWorker()
         self.media_download_worker.progress_changed.connect(
             lambda done, total: self.status.setText(
-                f'FFmpeg download: {done // (1024 * 1024)} / '
+                f'FFmpegダウンロード： {done // (1024 * 1024)} / '
                 f'{total // (1024 * 1024)} MiB'
             )
         )
@@ -263,21 +297,21 @@ class MainWindow(QMainWindow):
         self.media_download_worker.failed.connect(self._media_failed)
         self.media_setup_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
-        self.status.setText('Downloading FFmpeg directly from publisher…')
+        self.status.setText('FFmpegを配布元からダウンロードしています…')
         self.media_download_worker.start()
 
     def _media_ready(self):
         self.media_setup_btn.setEnabled(True)
         self.start_btn.setEnabled(True)
-        self.status.setText('FFmpeg installed. PATH configuration not required.')
+        self.status.setText('FFmpegの設定が完了しました。PATH変更は不要です。')
         if not self.model.text() and self.settings.value('promptModelSetup', True, type=bool):
             QTimer.singleShot(300, self.download_model_prompt)
 
     def _media_failed(self, message):
         self.media_setup_btn.setEnabled(True)
         self.start_btn.setEnabled(True)
-        self.status.setText(f'FFmpeg setup failed: {message}')
-        QMessageBox.warning(self, 'FFmpeg setup failed', message)
+        self.status.setText(f'FFmpegの設定に失敗: {message}')
+        QMessageBox.warning(self, 'FFmpegの設定に失敗', message)
 
     def _model_busy(self):
         return ((self.model_setup_worker and self.model_setup_worker.isRunning())
@@ -287,10 +321,10 @@ class MainWindow(QMainWindow):
         if self._job_busy() or self._model_busy() or self._media_busy():
             return
         answer = QMessageBox.question(
-            self, 'Set up AI super-resolution?',
-            'Download the experimental BSRGANx2 model from this project GitHub Releases?\\n'
-            'The download is SHA-256 verified and the model is installed ONLY after\\n'
-            'successful Intel NPU compilation. No CPU/GPU fallback is used.',
+            self, 'AI超解像モデルのセットアップ',
+            'GitHub Releasesから試験用BSRGANx2モデルをダウンロードしますか？\\n'
+            'SHA-256を検証し、モデルがNPUでコンパイルできた場合のみ\\n'
+            'インストールします。CPU/GPUへの自動切替は行いません。',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if answer != QMessageBox.StandardButton.Yes:
             self.settings.setValue('promptModelSetup', False)
@@ -301,22 +335,22 @@ class MainWindow(QMainWindow):
         self.start_btn.setEnabled(False)
         self.model_download_btn.setEnabled(False)
         self.model_setup_btn.setEnabled(False)
-        self.status.setText('Downloading verified GitHub model and compiling on NPU…')
+        self.status.setText('公式モデルをダウンロードしてNPU上で検証しています…')
         self.model_download_worker.start()
 
     def install_model_package_dialog(self):
         if self._job_busy() or (self.model_setup_worker and self.model_setup_worker.isRunning()):
-            QMessageBox.warning(self, 'Model setup busy', 'Finish the current operation first.')
+            QMessageBox.warning(self, 'モデルのセットアップ中', '先に実行中の処理を完了してください。')
             return
         archive, _ = QFileDialog.getOpenFileName(
-            self, 'Select trusted NPU model package', '', 'Model ZIP (*.zip)')
+            self, '信頼できるNPUモデルZIPを選択', '', 'モデルZIP (*.zip)')
         if not archive:
             return
         answer = QMessageBox.question(
-            self, 'Trust model package?',
-            'Only use model ZIPs from the NPU Video Upscaler official build artifacts.\\n'
-            'The included checksums detect corruption but do not prove who created the ZIP.\\n'
-            'Validate and install this model with the Intel NPU?',
+            self, 'モデルZIPの確認',
+            'NPU Video Upscaler公式配布物のZIPだけを使用してください。\\n'
+            '内蔵チェックサムは破損検出用で、配布元の真正性は保証しません。\\n'
+            'Intel NPUで検証してインストールしますか？',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if answer != QMessageBox.StandardButton.Yes:
             return
@@ -325,7 +359,7 @@ class MainWindow(QMainWindow):
         self.model_setup_worker.failed.connect(self._model_setup_failed)
         self.model_setup_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
-        self.status.setText('Validating model and compiling for NPU…')
+        self.status.setText('モデルを検証しNPUでコンパイルしています…')
         self.model_setup_worker.start()
 
     def _model_ready(self, model_path):
@@ -333,14 +367,14 @@ class MainWindow(QMainWindow):
         self.start_btn.setEnabled(True)
         self.model_setup_btn.setEnabled(True)
         self.model_download_btn.setEnabled(True)
-        self.status.setText('Model installed and compiled for NPU. Select video to convert.')
+        self.status.setText('NPUモデルの設定が完了しました。変換する動画を選択してください。')
 
     def _model_setup_failed(self, message):
         self.start_btn.setEnabled(True)
         self.model_setup_btn.setEnabled(True)
         self.model_download_btn.setEnabled(True)
-        self.status.setText(f'Model setup failed: {message}')
-        QMessageBox.warning(self, 'NPU model setup failed', message)
+        self.status.setText(f'モデルの設定に失敗: {message}')
+        QMessageBox.warning(self, 'NPUモデルの設定に失敗', message)
 
     def _job_busy(self):
         return self.worker is not None and self.worker.isRunning()
@@ -351,21 +385,21 @@ class MainWindow(QMainWindow):
         self.update_check_worker = UpdateCheckWorker()
         self.update_check_worker.found.connect(self._update_found)
         self.update_check_worker.error.connect(
-            lambda message: self.status.setText(f'Update check failed: {message}'))
+            lambda message: self.status.setText(f'更新確認に失敗: {message}'))
         self.update_check_worker.start()
 
     def _update_found(self, update):
         if update is None:
-            self.status.setText('No newer version available.')
+            self.status.setText('新しいバージョンはありません。')
             return
         if self._job_busy():
             self.pending_update = update
-            self.status.setText(f'Update v{update.version} available after conversion.')
+            self.status.setText(f'バージョン {update.version} の更新があります。変換後に適用できます。')
             return
         response = QMessageBox.question(
-            self, 'Update available',
-            f'Version {update.version} is available from GitHub Releases.\n'
-            'Download the installer and verify SHA-256?',
+            self, '更新があります',
+            f'GitHub Releasesにバージョン {update.version} があります。\n'
+            'インストーラをダウンロードしてSHA-256を検証しますか？',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if response != QMessageBox.StandardButton.Yes:
             return
@@ -377,60 +411,60 @@ class MainWindow(QMainWindow):
             return
         self.update_download_worker = UpdateDownloadWorker(update)
         self.update_download_worker.progress.connect(
-            lambda done, total: self.status.setText(f'Update download: {done // 1024} / {total // 1024} KiB'))
+            lambda done, total: self.status.setText(f'更新ファイルのダウンロード： {done // 1024} / {total // 1024} KiB'))
         self.update_download_worker.error.connect(
-            lambda message: QMessageBox.warning(self, 'Update failed', message))
+            lambda message: QMessageBox.warning(self, '更新に失敗', message))
         self.update_download_worker.completed.connect(self._install_update)
         self.update_download_worker.start()
 
     def _install_update(self, installer_path):
         if self._job_busy():
-            self.status.setText('Update downloaded. Finish conversion before installing.')
+            self.status.setText('更新ファイルを取得しました。変換完了後にインストールしてください。')
             return
         response = QMessageBox.question(
-            self, 'Install update',
-            'The installer passed SHA-256 verification.\n'
-            'Close this app and launch the interactive installer now?',
+            self, '更新をインストール',
+            'インストーラのSHA-256検証に成功しました。\n'
+            'アプリを終了して更新インストーラを起動しますか？',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if response != QMessageBox.StandardButton.Yes:
-            self.status.setText(f'Verified update saved at: {installer_path}')
+            self.status.setText(f'検証済みの更新ファイル： {installer_path}')
             return
         try:
             subprocess.Popen([installer_path], cwd=str(Path(installer_path).parent),
                              close_fds=True)
         except OSError as exc:
-            QMessageBox.critical(self, 'Unable to start installer', str(exc))
+            QMessageBox.critical(self, 'インストーラを起動できません', str(exc))
             return
         QApplication.instance().quit()
 
     def start_job(self):
         if self._media_busy():
-            QMessageBox.warning(self, 'FFmpeg setup busy', 'Wait for FFmpeg setup to finish.')
+            QMessageBox.warning(self, 'FFmpegのセットアップ中', 'FFmpegの設定が完了するまでお待ちください。')
             return
         try:
             resolve_media_tools()
         except MediaToolsError as exc:
-            QMessageBox.warning(self, 'FFmpeg required', str(exc))
+            QMessageBox.warning(self, 'FFmpegが必要です', str(exc))
             return
         if self._model_busy():
-            QMessageBox.warning(self, 'Model setup busy', 'Wait for NPU validation to finish.')
+            QMessageBox.warning(self, 'モデルのセットアップ中', 'NPUの検証が完了するまでお待ちください。')
             return
         if self.worker and self.worker.isRunning():
             return
         if not all((self.source.text(), self.model.text(), self.destination.text())):
-            QMessageBox.warning(self, 'Missing paths', 'Select input, model and output files.')
+            QMessageBox.warning(self, 'ファイルが未選択です', '入力動画・AIモデル・出力先を指定してください。')
             return
         self.worker = Worker(Path(self.source.text()), Path(self.model.text()),
                              Path(self.destination.text()),
                              preview_seconds=60 if self.preview.isChecked() else None)
         self._started_at = time.monotonic()
         self.worker.progress_changed.connect(self.update_progress)
-        self.worker.succeeded.connect(lambda frames: self.finish(f'Completed: {frames} frames'))
-        self.worker.failed.connect(lambda message: self.finish(f'Failed: {message}'))
-        self.worker.cancelled.connect(lambda: self.finish('Cancelled'))
+        self.worker.succeeded.connect(lambda frames: self.finish(f'完了：{frames} フレーム'))
+        self.worker.failed.connect(lambda message: self.finish(f'失敗：{message}'))
+        self.worker.cancelled.connect(lambda: self.finish('キャンセルしました'))
         self.start_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
-        self.status.setText('Preparing NPU / converting…')
+        self.status.setText('NPUを準備して変換しています…')
         self.bar.setRange(0, 0)
         self.worker.start()
 
@@ -438,22 +472,22 @@ class MainWindow(QMainWindow):
         if total:
             self.bar.setRange(0, max(done, total))
             self.bar.setValue(done)
-            self.status.setText(f'{done} / ~{total} frames')
+            self.status.setText(f'{done} / 約{total} フレーム')
         else:
-            self.status.setText(f'{done} frames')
+            self.status.setText(f'{done} フレーム')
 
     def cancel_job(self):
         if self.worker:
             self.worker.cancel_flag.set()
-            self.status.setText('Cancelling after current NPU tile…')
+            self.status.setText('現在のNPU処理が終わり次第キャンセルします…')
 
     def finish(self, message):
-        if message.startswith('Completed') and hasattr(self, '_started_at'):
-            message += f' (elapsed {time.monotonic() - self._started_at:.1f}s)'
+        if message.startswith('完了：') and hasattr(self, '_started_at'):
+            message += f'（処理時間：{time.monotonic() - self._started_at:.1f}秒）'
         self.start_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         self.bar.setRange(0, 1)
-        self.bar.setValue(1 if message.startswith('Completed') else 0)
+        self.bar.setValue(1 if message.startswith('完了：') else 0)
         self.status.setText(message)
         if self.pending_update:
             update, self.pending_update = self.pending_update, None
@@ -466,7 +500,7 @@ class MainWindow(QMainWindow):
         elif ((self.update_check_worker and self.update_check_worker.isRunning())
               or (self.update_download_worker and self.update_download_worker.isRunning())
               or self._model_busy() or self._media_busy()):
-            self.status.setText('Waiting for update request to finish…')
+            self.status.setText('更新処理の完了を待っています…')
             event.ignore()
         else:
             event.accept()
