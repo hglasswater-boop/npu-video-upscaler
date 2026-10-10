@@ -93,3 +93,15 @@ def test_windows_release_workflow_stages_tools_before_installer():
     assert 'ffmpeg.exe' in workflow
     assert 'sha256' in workflow.lower()
     assert workflow.index('Stage verified FFmpeg') < workflow.index('Build per-user Inno Setup installer')
+
+
+def test_public_release_is_gated_on_corresponding_source_verification():
+    workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/windows-build-release.yml').read_text(encoding='utf-8')
+    assert "vars.FFMPEG_GPL_CORRESPONDING_SOURCE_READY == 'true'" in workflow
+    assert "GPL-3.0.txt" in workflow
+
+
+def test_frozen_binary_check_command_is_a_non_gui_path():
+    source = (Path(__file__).resolve().parents[1] / 'launcher.py').read_text(encoding='utf-8')
+    assert '"--check-media"' in source
+    assert "resolve_media_tools()" in source
