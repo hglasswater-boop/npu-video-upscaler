@@ -86,16 +86,15 @@ jobs:
           & $probe -version | Select-Object -First 1
           if ($LASTEXITCODE -ne 0) { throw 'Bundled ffprobe smoke failed' }
           & $exe -buildconf | Set-Content -Path (Join-Path $dest 'ffmpeg-buildconf.txt')
-          @"
-          This build uses independently provided FFmpeg programs from gyan.dev.
-          Vendor: https://www.gyan.dev/ffmpeg/builds/
-          Vendor archive SHA256: $env:FFMPEG_VENDOR_ARCHIVE_SHA256
-          FFmpeg source: https://github.com/FFmpeg/FFmpeg/commit/946fcce07b
-          License: GPLv3 (static release essentials build with libx264).
-          Redistribution requires *complete corresponding source* and license
-          obligations, including the external dependencies. Refer to
-          https://ffmpeg.org/legal.html and repository docs/bundled-media-tools.md.
-          "@ | Set-Content -Encoding utf8 (Join-Path $dest 'FFMPEG-NOTICE.txt')
+          @(
+            'This build uses FFmpeg binaries from gyan.dev.'
+            'Vendor: https://www.gyan.dev/ffmpeg/builds/'
+            "Vendor archive SHA256: $env:FFMPEG_VENDOR_ARCHIVE_SHA256"
+            'FFmpeg source: https://github.com/FFmpeg/FFmpeg/commit/946fcce07b'
+            'License: GPLv3 (static release essentials build with libx264).'
+            'Distribution requires complete corresponding source and license notices.'
+            'See: https://ffmpeg.org/legal.html'
+          ) | Set-Content -Encoding utf8 (Join-Path $dest 'FFMPEG-NOTICE.txt')
 
       - name: Verify media tools run without external FFmpeg on PATH
         shell: pwsh
