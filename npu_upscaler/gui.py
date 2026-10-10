@@ -34,7 +34,7 @@ class QMessageBox(QtMessageBox):
         dialog.addButton("いいえ", QtMessageBox.ButtonRole.NoRole)
         dialog.setDefaultButton(yes)
         dialog.exec()
-        return (QtMessageBox.StandardButton.Yes if dialog.clickedButton() is yes
+        return (QtMessageBox.StandardButton.Yes if dialog.clickedButton() == yes
                 else QtMessageBox.StandardButton.No)
 
     @staticmethod
