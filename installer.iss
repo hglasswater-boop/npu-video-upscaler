@@ -30,4 +30,4 @@ Source: "dist\NpuVideoUpscaler\*"; DestDir: "{app}"; Flags: ignoreversion recurs
 Name: "{autoprograms}\NPU Video Upscaler"; Filename: "{app}\NpuVideoUpscaler.exe"
 
 [Run]
-Filename: "{app}\NpuVideoUpscaler.exe"; Description: "Launch NPU Video Upscaler"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\NpuVideoUpscaler.exe"; Description: "Launch NPU Video Upscaler and set up FFmpeg"; Flags: nowait postinstall skipifsilent
