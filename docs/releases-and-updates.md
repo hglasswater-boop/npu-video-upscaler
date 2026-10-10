@@ -34,7 +34,7 @@
 ## Installation and rollback
 - Installer installs to `{localappdata}\\Programs\\NpuVideoUpscaler` (stable AppId and location).
 - Inno Setup uninstaller handles removal; new version replaces previous installation. No bespoke migration logic or versioned executable replacement.
-- If a bad prerelease is published, GitHub Release maintainers must issue a newer version; do not replace checksummed artifacts at the same version.
+- If a bad prerelease is published, GitHub Release maintainers must issue a newer version; do not replace checksummed artifacts at the same version. Main pushes that only change tests/docs should detect an existing identical version and skip publishing that version (successfully) rather than attempting to overwrite it. Only a new version may publish new release assets.
 
 ## Real published installer upgrade regression — Issue #8
 
