@@ -26,6 +26,11 @@
 4. UI checks are worker-threaded; manual and startup checks use the same service; update not offered while video job is active; installer launched only after confirmation.
 5. Manual Windows 11 smoke test: install vA, release vB, update prompt, verify vB starts and app preferences remain. Hardware NPU inference remains blocked by #3.
 
+## Windows FFmpeg cancellation invariant
+- FFmpeg must be terminated and reaped before temporary export deletion.
+- Windows may delay releasing file handles immediately after subprocess exit; retry deletion for a **bounded** interval on `PermissionError`, without ever deleting the prior completed destination.
+- CI installs actual FFmpeg so the audio-copy and cancellation integration tests execute on Windows instead of being skipped.
+
 ## Installation and rollback
 - Installer installs to `{localappdata}\\Programs\\NpuVideoUpscaler` (stable AppId and location).
 - Inno Setup uninstaller handles removal; new version replaces previous installation. No bespoke migration logic or versioned executable replacement.
