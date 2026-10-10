@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QFormLayout, QHBoxLayo
                                QProgressBar, QPushButton, QVBoxLayout, QWidget, QCheckBox)
 
 from .pipeline import JobCancelled, run_video
+from .media_tools import (find_installed_media_tools, install_vendor_media_tools,
+                          resolve_media_tools, MediaToolsError)
 from .model_packages import find_prepared_model, install_model_zip
 from .model_download import choose_model_release
 from .updates import choose_update, download_installer, fetch_releases
@@ -105,6 +107,21 @@ class ModelDownloadWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class MediaDownloadWorker(QThread):
+    progress_changed = Signal(int, int)
+    completed = Signal()
+    failed = Signal(str)
+
+    def run(self):
+        try:
+            install_vendor_media_tools(
+                progress=lambda done, total: self.progress_changed.emit(done, total)
+            )
+            self.completed.emit()
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -115,6 +132,7 @@ class MainWindow(QMainWindow):
         self.update_download_worker = None
         self.model_setup_worker = None
         self.model_download_worker = None
+        self.media_download_worker = None
         self.pending_update = None
         self.settings = QSettings('NpuVideoUpscaler', 'NpuVideoUpscaler')
         layout = QVBoxLayout()
@@ -123,6 +141,8 @@ class MainWindow(QMainWindow):
         self.model = self._picker(form, 'OpenVINO model XML', 'OpenVINO IR (*.xml)', False)
         self.model_setup_btn = QPushButton('Install model ZIP')
         form.addRow('AI model setup', self.model_setup_btn)
+        self.media_setup_btn = QPushButton('Download FFmpeg from publisher')
+        form.addRow('Media tools', self.media_setup_btn)
         self.driver_help_btn = QPushButton('Intel NPU driver help')
         form.addRow('NPU driver', self.driver_help_btn)
         self.model_download_btn = QPushButton('Download AI model')
@@ -167,10 +187,13 @@ class MainWindow(QMainWindow):
         self.update_btn.clicked.connect(self.check_updates)
         self.model_setup_btn.clicked.connect(self.install_model_package_dialog)
         self.model_download_btn.clicked.connect(self.download_model_prompt)
+        self.media_setup_btn.clicked.connect(self.download_ffmpeg_prompt)
         self.driver_help_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(
             'https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html'
         )))
-        if not prepared_model and self.settings.value('promptModelSetup', True, type=bool):
+        if find_installed_media_tools() is None:
+            QTimer.singleShot(600, self.download_ffmpeg_prompt)
+        elif not prepared_model and self.settings.value('promptModelSetup', True, type=bool):
             QTimer.singleShot(2600, self.download_model_prompt)
         if self.auto_update.isChecked():
             QTimer.singleShot(1500, self.check_updates)
@@ -213,7 +236,7 @@ class MainWindow(QMainWindow):
                 or (self.model_download_worker and self.model_download_worker.isRunning()))
 
     def download_model_prompt(self):
-        if self._job_busy() or self._model_busy():
+        if self._job_busy() or self._model_busy() or self._media_busy():
             return
         answer = QMessageBox.question(
             self, 'Set up AI super-resolution?',
@@ -333,6 +356,14 @@ class MainWindow(QMainWindow):
         QApplication.instance().quit()
 
     def start_job(self):
+        if self._media_busy():
+            QMessageBox.warning(self, 'FFmpeg setup busy', 'Wait for FFmpeg setup to finish.')
+            return
+        try:
+            resolve_media_tools()
+        except MediaToolsError as exc:
+            QMessageBox.warning(self, 'FFmpeg required', str(exc))
+            return
         if self._model_busy():
             QMessageBox.warning(self, 'Model setup busy', 'Wait for NPU validation to finish.')
             return
@@ -386,7 +417,7 @@ class MainWindow(QMainWindow):
             event.ignore()
         elif ((self.update_check_worker and self.update_check_worker.isRunning())
               or (self.update_download_worker and self.update_download_worker.isRunning())
-              or self._model_busy()):
+              or self._model_busy() or self._media_busy()):
             self.status.setText('Waiting for update request to finish…')
             event.ignore()
         else:
