@@ -24,8 +24,15 @@ jobs:
       - name: Install package, test and build tools
         run: python -m pip install -e ".[dev]"
 
+      - name: Install FFmpeg for A/V regression tests
+        shell: pwsh
+        run: |
+          choco install ffmpeg --yes --no-progress
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
+
       - name: Unit and FFmpeg integration tests
-        run: python -m pytest -q
+        run: python -m pytest -q -rs
 
       - name: Resolve version from single source
         id: version
