@@ -189,11 +189,29 @@ class MainWindow(QMainWindow):
         if self.auto_update.isChecked():
             QTimer.singleShot(1500, self.check_updates)
 
+    def _refresh_guidance(self, *_ignored):
+        self.media_state.setText(
+            "FFmpeg：設定済み" if self._media_ready_known
+            else "FFmpeg：未設定（下のボタンでダウンロード）")
+        self.model_state.setText(
+            "AIモデル：設定済み" if self.model.text()
+            else "AIモデル：未設定（下のボタンでダウンロード）")
+        if not self.source.text():
+            self.guidance.setText("次にすること：① 「参照…」から動画を選んでください。")
+        elif not self._media_ready_known:
+            self.guidance.setText("次にすること：② FFmpegをダウンロードしてください。")
+        elif not self.model.text():
+            self.guidance.setText("次にすること：② AIモデルをダウンロードしてください。")
+        else:
+            self.guidance.setText(
+                "準備完了：③ 先頭60秒だけ試し、確認してから全編を変換できます。")
+
     def _picker(self, form, label, file_filter, save):
         edit = QLineEdit()
+        edit.setMinimumWidth(0)
         browse = QPushButton('参照…')
         row = QHBoxLayout()
-        row.addWidget(edit)
+        row.addWidget(edit, 1)
         row.addWidget(browse)
         form.addRow(label, row)
 
@@ -222,6 +240,7 @@ class MainWindow(QMainWindow):
         suggestion = str(source.with_name(f'{source.stem}{suffix}.mp4'))
         self._suggested_output = suggestion
         self.destination.setText(suggestion)
+
     def _media_busy(self):
         return self.media_download_worker is not None and self.media_download_worker.isRunning()
 
@@ -229,6 +248,8 @@ class MainWindow(QMainWindow):
         if self._job_busy() or self._media_busy() or self._model_busy():
             return
         if find_installed_media_tools():
+            self._media_ready_known = True
+            self._refresh_guidance()
             self.status.setText('FFmpegとffprobeは設定済みです。')
             return
         answer = QMessageBox.question(
@@ -259,6 +280,8 @@ class MainWindow(QMainWindow):
     def _media_ready(self):
         self.media_setup_btn.setEnabled(True)
         self.start_btn.setEnabled(True)
+        self._media_ready_known = True
+        self._refresh_guidance()
         self.status.setText('FFmpegの設定が完了しました。PATH変更は不要です。')
         if not self.model.text() and self.settings.value('promptModelSetup', True, type=bool):
             QTimer.singleShot(300, self.download_model_prompt)
@@ -320,6 +343,7 @@ class MainWindow(QMainWindow):
 
     def _model_ready(self, model_path):
         self.model.setText(model_path)
+        self._refresh_guidance()
         self.start_btn.setEnabled(True)
         self.model_setup_btn.setEnabled(True)
         self.model_download_btn.setEnabled(True)
