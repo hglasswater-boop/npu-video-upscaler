@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.fixture
-def win(monkeypatch):
+def win(monkeypatch, qt_app):
     monkeypatch.setenv('QT_QPA_PLATFORM', 'offscreen')
     from PySide6.QtWidgets import QApplication
     from npu_upscaler import gui
