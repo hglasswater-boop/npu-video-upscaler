@@ -13,6 +13,14 @@ Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with
 - 8-bit H.264 `libx264` MP4 output and stream copy of compatible AAC/MP3/AC-3/E-AC-3/ALAC audio. A silent source yields silent output.
 - Temporary output and cleanup on failure/cancel; no server uploads.
 
+## Planned self-contained FFmpeg installer (Issue #11)
+
+**Development branch only — not released yet.** The Windows installer / portable build will include the verified vendor `ffmpeg.exe` and `ffprobe.exe` in an application-private directory. The frozen app uses only that pair, does not change system PATH, and provides a `--check-media` command for offline testing. Python/source checkouts still require their own FFmpeg on PATH.
+
+The selected Gyan Essentials build includes GPLv3-licensed code (`libx264`). **The public release is intentionally blocked until the complete corresponding source and related license obligations can be provided and checked.** A copy of the GPLv3 license, notices and `ffmpeg -buildconf` will travel with the binaries, but those documents **alone are insufficient** for compliant redistribution. See [bundled media tool specification](docs/bundled-media-tools.md).
+
+Intel NPU drivers are never silently installed or bundled. If the app cannot see `NPU`, use the in-app **Intel NPU driver help** link or the [Intel download page](https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html). A reboot may be required after driver installation. Real Intel Core Ultra 5 125H inference is still unverified.
+
 ## Install / launch from source
 
 1. Windows 11 64-bit; install latest [Intel NPU driver](https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html) compatible with your device.
