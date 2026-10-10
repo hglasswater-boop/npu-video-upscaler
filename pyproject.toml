@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "npu-video-upscaler"
+dynamic = ["version"]
+description = "NPU-only offline video upscaler for Windows 11"
+requires-python = ">=3.11,<3.13"
+dependencies = ["numpy>=1.26,<3", "openvino>=2025.0,<2027", "PySide6>=6.7,<7", "packaging>=24,<27"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pyinstaller>=6.11,<7"]
+
+[tool.setuptools.dynamic]
+version = {attr = "npu_upscaler.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["npu_upscaler*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
