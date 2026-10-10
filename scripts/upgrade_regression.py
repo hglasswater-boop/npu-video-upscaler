@@ -87,7 +87,7 @@ def main() -> None:
     if EXE.exists():
         raise AssertionError("Upgrade CI must start without a previous installation")
     staging = Path(os.environ["RUNNER_TEMP"]) / "npu-upgrade-verified"
-    old = get_installer("0.2.0a1", "0.1.0", staging)
+    old = get_installer("0.2.0a1", "0.1.0a1", staging)
     new = get_installer("0.2.0a2", "0.2.0a1", staging)
 
     # No install operation is performed by get_installer/download_installer.
