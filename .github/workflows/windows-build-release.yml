@@ -107,9 +107,9 @@ jobs:
           $original = $env:PATH
           try {
             $env:PATH = "$env:WINDIR\System32;$env:WINDIR"
-            & (Join-Path $tools 'ffmpeg.exe') -version | Select-Object -First 1
+            & (Join-Path $tools 'ffmpeg.exe') -version | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Private FFmpeg failed with sanitized PATH' }
-            & (Join-Path $tools 'ffprobe.exe') -version | Select-Object -First 1
+            & (Join-Path $tools 'ffprobe.exe') -version | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Private ffprobe failed with sanitized PATH' }
           } finally {
             $env:PATH = $original
