@@ -160,7 +160,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f'NPU Video Upscaler v{__version__} — 開発版')
-        self.resize(670, 620)
         self.worker = None
         self.update_check_worker = None
         self.update_download_worker = None
@@ -168,54 +167,11 @@ class MainWindow(QMainWindow):
         self.model_download_worker = None
         self.media_download_worker = None
         self.pending_update = None
+        self._media_ready_known = find_installed_media_tools() is not None
         self.settings = QSettings('NpuVideoUpscaler', 'NpuVideoUpscaler')
-        layout = QVBoxLayout()
-        form = QFormLayout()
-        self.source = self._picker(form, '入力動画（MP4 / MKV）', '動画ファイル (*.mp4 *.mkv)', False)
-        self.model = self._picker(form, 'OpenVINOモデルXML', 'OpenVINO IR (*.xml)', False)
-        self.model_setup_btn = QPushButton('モデルZIPをインストール')
-        form.addRow('AIモデルの設定', self.model_setup_btn)
-        self.media_setup_btn = QPushButton('FFmpegをダウンロード')
-        form.addRow('動画処理ツール', self.media_setup_btn)
-        self.driver_help_btn = QPushButton('Intel NPUドライバーの案内')
-        form.addRow('NPUドライバー', self.driver_help_btn)
-        self.model_download_btn = QPushButton('AIモデルをダウンロード')
-        form.addRow('公式AIモデル', self.model_download_btn)
+        from .gui_layout import build_ui
         prepared_model = find_prepared_model()
-        if prepared_model:
-            self.model.setText(str(prepared_model))
-        self.destination = self._picker(form, '出力動画（MP4）', 'MP4 (*.mp4)', True)
-        layout.addLayout(form)
-        self._suggested_output = None
-        self.preview = QCheckBox('先頭60秒だけ変換して画質を確認')
-        layout.addWidget(self.preview)
-        self.preview.toggled.connect(self._suggest_output)
-        self.source.textChanged.connect(self._suggest_output)
-        actions = QHBoxLayout()
-        self.start_btn = QPushButton('NPUで変換を開始')
-        self.cancel_btn = QPushButton('キャンセル')
-        self.cancel_btn.setEnabled(False)
-        actions.addWidget(self.start_btn)
-        actions.addWidget(self.cancel_btn)
-        layout.addLayout(actions)
-        update_actions = QHBoxLayout()
-        self.update_btn = QPushButton('更新を確認')
-        self.auto_update = QCheckBox('起動時に更新を確認')
-        self.auto_update.setChecked(self.settings.value('autoCheckUpdates', True, type=bool))
-        self.auto_update.toggled.connect(
-            lambda checked: self.settings.setValue('autoCheckUpdates', checked))
-        update_actions.addWidget(self.update_btn)
-        update_actions.addWidget(self.auto_update)
-        layout.addLayout(update_actions)
-        self.bar = QProgressBar()
-        self.bar.setRange(0, 1)
-        self.bar.setValue(0)
-        self.status = QLabel('準備完了。NPU対応モデルを選択してください。')
-        layout.addWidget(self.bar)
-        layout.addWidget(self.status)
-        wrapper = QWidget()
-        wrapper.setLayout(layout)
-        self.setCentralWidget(wrapper)
+        build_ui(self, prepared_model)
         self.start_btn.clicked.connect(self.start_job)
         self.cancel_btn.clicked.connect(self.cancel_job)
         self.update_btn.clicked.connect(self.check_updates)
