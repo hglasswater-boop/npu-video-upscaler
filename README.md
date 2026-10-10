@@ -13,6 +13,14 @@ Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with
 - 8-bit H.264 `libx264` MP4 output and stream copy of compatible AAC/MP3/AC-3/E-AC-3/ALAC audio. A silent source yields silent output.
 - Temporary output and cleanup on failure/cancel; no server uploads.
 
+## 日本語UI・FFmpegセットアップの修正（v0.2.0a5）
+
+Windows 11で確認された `[WinError 5] アクセスが拒否されました`（FFmpegの一時フォルダーを移動できない問題）に対応しました。一時フォルダー内での実行確認を廃止し、**最終保存先へ移動してから**FFmpeg・ffprobeを起動検証します。移動時の一時的なファイルロックには再試行し、失敗中の不完全なキャッシュは利用しません。
+
+アプリの各項目・確認ダイアログ・進捗・更新画面を日本語化し、Windowsインストーラの言語も日本語に対応しました。FFmpegは利用者が確認してから配布元から直接ダウンロードし、SHA-256を検証します。PATHの設定変更は不要です。
+
+すでにv0.2.0a4を使っている場合は、アプリの**「更新を確認」**からv0.2.0a5に更新するか、GitHub Releasesで新しいインストーラを実行してください。設定・キャッシュはユーザー領域に保存されます。Windowsユーザーによる再試験と125H実機のNPU動作確認は未完了です。
+
 ## Publisher-direct FFmpeg setup (v0.2.0a4)
 
 The Windows installer and portable ZIP include the Python GUI and OpenVINO runtime, **but not FFmpeg binaries**. On first app launch, click **Yes** to download GyanD's **FFmpeg 9.0.2 Essentials** (~115 MB ZIP) from the publisher's versioned GitHub Release, verify the pinned SHA-256, then extract only ffmpeg/ffprobe into a user-local app cache. No administrator rights, global PATH settings, or Python installation are needed. You can decline and use **Download FFmpeg from publisher** later. After first setup, it works offline.
