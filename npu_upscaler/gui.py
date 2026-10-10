@@ -250,4 +250,6 @@ def main():
     app = QApplication([])
     window = MainWindow()
     window.show()
+    if os.environ.get('NPU_UPSCALER_SMOKE_TEST') == '1':
+        QTimer.singleShot(1000, app.quit)
     return app.exec()
