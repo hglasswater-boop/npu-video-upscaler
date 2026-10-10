@@ -11,7 +11,7 @@ import time
 
 import numpy as np
 
-from .media import decoder_command, encoder_command, probe_video
+from .media import decoder_command, encoder_command, preview_frame_cap, probe_video
 from .npu import load_npu_model, upscale_frame, UpscaleCancelled
 
 
@@ -78,9 +78,21 @@ def _stop(process) -> None:
             handle.close()
 
 
+def preview_limit_seconds(requested: int | None) -> int | None:
+    if requested not in (None, 60):
+        raise ValueError('Preview duration must be exactly 60 seconds')
+    return requested
+
+
+def preview_progress_total(info) -> int:
+    maximum = preview_frame_cap(info.fps)
+    return min(maximum, info.total_frames) if info.total_frames is not None else maximum
+
+
 def run_video(source: Path, model: Path, destination: Path,
               progress: Callable[[int, int | None], None] = lambda done, total: None,
-              cancel: Event | None = None) -> int:
+              cancel: Event | None = None, preview_seconds: int | None = None) -> int:
+    preview_seconds = preview_limit_seconds(preview_seconds)
     cancel = cancel if cancel is not None else Event()
     source, model, destination = Path(source), Path(model), Path(destination)
     validate_paths(source, model, destination)
@@ -88,6 +100,8 @@ def run_video(source: Path, model: Path, destination: Path,
         raise RuntimeError('FFmpeg and ffprobe must be on PATH')
     check_not_cancelled(cancel)
     info = probe_video(source)
+    max_frames = preview_frame_cap(info.fps) if preview_seconds is not None else None
+    progress_total = preview_progress_total(info) if preview_seconds is not None else info.total_frames
     compiled, shape = load_npu_model(model)
     temporary = temporary_output_path(destination)
     decoder = encoder = None
@@ -96,9 +110,9 @@ def run_video(source: Path, model: Path, destination: Path,
     with tempfile.TemporaryFile(mode='w+t', encoding='utf-8') as decode_log, \
          tempfile.TemporaryFile(mode='w+t', encoding='utf-8') as encode_log:
         try:
-            decoder = subprocess.Popen(decoder_command(source), stdout=subprocess.PIPE,
+            decoder = subprocess.Popen(decoder_command(source, max_frames=max_frames), stdout=subprocess.PIPE,
                                        stdin=subprocess.DEVNULL, stderr=decode_log)
-            encoder = subprocess.Popen(encoder_command(source, temporary, info, shape.scale),
+            encoder = subprocess.Popen(encoder_command(source, temporary, info, shape.scale, max_duration=preview_seconds),
                                        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=encode_log)
             frame_size = info.width * info.height * 3
 
@@ -118,7 +132,7 @@ def run_video(source: Path, model: Path, destination: Path,
                     raise JobCancelled(str(exc)) from exc
                 encoder.stdin.write(upscaled.tobytes())
                 count += 1
-                progress(count, info.total_frames)
+                progress(count, progress_total)
             encoder.stdin.close()
             decode_status = decoder.wait()
             encode_status = encoder.wait()

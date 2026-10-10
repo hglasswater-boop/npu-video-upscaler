@@ -12,3 +12,9 @@ This prerelease is an **early Windows 11 x64 test build**, *not a validated fini
 For requirements and limitations, see the [README](https://github.com/hglasswater-boop/npu-video-upscaler#readme), [model validation issue #3](https://github.com/hglasswater-boop/npu-video-upscaler/issues/3), and [release/update design](https://github.com/hglasswater-boop/npu-video-upscaler/blob/main/docs/releases-and-updates.md).
 
 Do not rely on this build to preserve HDR, VFR timestamps, subtitles, non-MP4-compatible audio or arbitrary model inputs.
+
+## v0.2.0a2 change
+
+- Adds optional **First 60 seconds** NPU quality-test export with a distinct filename.
+- Source audio is limited to the same 60-second window; short videos remain short.
+- Full export remains available. Pretrained NPU-compatible model still not bundled.
