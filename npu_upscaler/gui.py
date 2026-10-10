@@ -160,7 +160,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f'NPU Video Upscaler v{__version__} — 開発版')
-        self.resize(640, 260)
+        self.resize(670, 620)
         self.worker = None
         self.update_check_worker = None
         self.update_download_worker = None
