@@ -2,7 +2,7 @@
 
 Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with Intel Core Ultra **NPU-only** inference using OpenVINO + FFmpeg. Development: [Issue #1](https://github.com/hglasswater-boop/npu-video-upscaler/issues/1).
 
-> **Not yet tested on a Core Ultra 5 125H.** This prototype requires a **user-prepared, compatible OpenVINO IR super-resolution model** (`.xml` and matching `.bin`). BSRGAN conversion and weight distribution are **not automated**. Do not expect one-click conversion from a fresh install.
+> **Not yet tested on a Core Ultra 5 125H.** The v0.2.0a3 alpha offers an opt-in download of a **separate experimental BSRGANx2 OpenVINO model ZIP** from this project's GitHub Releases. It can be used only after compilation on the local Intel NPU succeeds; successful compilation on Core Ultra 5 125H remains unverified.
 
 ## Supported MVP
 
@@ -38,7 +38,7 @@ python -m pytest -q
 
 ## Known limitations / pending validation
 
-- No bundled upscaling model, one-click IR conversion, tested installer, signed EXE, or NPU hardware smoke test.
+- Installer does **not** contain model weights; alpha v0.2.0a3 publishes a separate checksummed BSRGANx2 model ZIP for consent-based setup. Windows CI has installer smoke tests, but the EXE is unsigned and no Core Ultra 5 125H NPU smoke test has passed.
 - Accepts only simple **nominally CFR** sources. Matching avg/r frame-rate does not conclusively detect VFR. Source per-frame timestamps, rotation, HDR metadata, and subtitle/attachment tracks are not preserved.
 - Unsupported audio codecs are rejected rather than transcoded or dropped. Audio stream-copy is supported for listed codecs, but complex sync cases need validation.
 - HEVC / Intel Quick Sync encoder path and seamless output guarantees across different super-resolution models are out of scope for this first iteration.
@@ -56,8 +56,14 @@ The preview pipeline limits decoded **video frames** to at most `floor(60 × sou
 
 **Alpha version v0.2.0a1** adds a Windows x64 per-user Inno Setup installer and portable ZIP. After CI completes and the change is merged to main, packages are published under [GitHub Releases](https://github.com/hglasswater-boop/npu-video-upscaler/releases). PR builds provide temporary [GitHub Actions artifacts](https://github.com/hglasswater-boop/npu-video-upscaler/actions) only. **An alpha installer is a testing convenience, not evidence that NPU inference is supported on your 125H yet.**
 
-Install the `NpuVideoUpscaler-Setup-v*-win-x64.exe` asset (unsigned), then launch via Start Menu. Portable ZIP contains a self-contained Python application folder; FFmpeg, the Intel NPU driver and a compatible OpenVINO model must still be installed/provided separately.
+Install the `NpuVideoUpscaler-Setup-v*-win-x64.exe` asset (unsigned), then launch via Start Menu. Portable ZIP contains a self-contained application folder; FFmpeg and the Intel NPU driver must still be installed separately. The BSRGANx2 model is provided as a separate GitHub Release asset (v0.2.0a3+) and can be set up from the GUI after consent.
 
 The desktop app checks GitHub Releases in a background thread at startup (toggle via **Check for updates on startup**) and has a **Check for updates** button. If a newer eligible release exists, approve the download, SHA-256 verification and interactive installer launch. Conversion jobs are not intentionally interrupted. Stable builds ignore prereleases; experimental builds may see alpha versions. Network activity for release checks is limited to the GitHub API and installer asset download; video data is never uploaded.
 
 Release tags and installer/portable archive names are derived from the package's single version string. Every new update requires a **new version**, rather than overwriting existing assets. See [release/update specification](docs/releases-and-updates.md) and [Issue #4](https://github.com/hglasswater-boop/npu-video-upscaler/issues/4).
+
+## Experimental BSRGANx2 model setup (v0.2.0a3)
+
+First launch offers a confirmation to download a **separate** BSRGANx2 model ZIP from this repository's versioned GitHub Releases. The archive is verified against the published SHA-256 and per-file hashes before OpenVINO tries to compile it **only on NPU**. It is saved and auto-selected after a successful NPU compilation; failure leaves the app without an active default model. Alternatively, use **Install model ZIP** to import the matching trusted build artifact. The installer/EXE itself contains no pretrained model, PyTorch or NNCF; the model is provisioned on demand.
+
+**This is experimental:** v0.2.0a3's conversion pipeline has only been validated in Windows CI on CPU. **No Core Ultra 5 125H NPU test has passed yet.** Image quality, seam artifacts and execution speed are unknown. The app displays a clear error if the NPU cannot compile the model. See [model preparation, licensing and limitations](docs/model-preparation.md) and [Issue #3](https://github.com/hglasswater-boop/npu-video-upscaler/issues/3).

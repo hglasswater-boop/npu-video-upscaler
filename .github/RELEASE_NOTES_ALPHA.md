@@ -18,3 +18,10 @@ Do not rely on this build to preserve HDR, VFR timestamps, subtitles, non-MP4-co
 - Adds optional **First 60 seconds** NPU quality-test export with a distinct filename.
 - Source audio is limited to the same 60-second window; short videos remain short.
 - Full export remains available. Pretrained NPU-compatible model still not bundled.
+
+## v0.2.0a3 (experimental model setup)
+
+- New model setup controls: install a trusted local BSRGANx2 model ZIP or download a separately published checksum-verified model from the same GitHub Release, with explicit opt-in.
+- Setup fails closed if the model cannot compile on **NPU**; no silent CPU/GPU fallback. Cached validated model is auto-selected at next start.
+- Experimental BSRGANx2-OpenVINO-INT8.zip is a separate asset with its own SHA-256 digest, source provenance and Apache-2.0 license notice.
+- Core Ultra 5 125H NPU compilation, inference speed, and output quality remain **not physically verified**. This is NOT a production release.

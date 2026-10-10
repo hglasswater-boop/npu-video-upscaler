@@ -98,6 +98,28 @@ jobs:
           $p = Start-Process -FilePath $installed -ArgumentList "--version" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Installed executable smoke failed: $($p.ExitCode)" }
 
+      - name: Install offline model conversion dependencies
+        run: python -m pip install -r scripts/model-build-requirements.txt
+
+      - name: Fetch and hash-pin authors BSRGANx2 checkpoint
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $weights = Join-Path $env:RUNNER_TEMP 'BSRGANx2.pth'
+          Invoke-WebRequest -Uri 'https://github.com/cszn/KAIR/releases/download/v1.0/BSRGANx2.pth' -OutFile $weights
+          $expected = '614f68bcafcf123a1ea51cc75ae5741640a8b1d49dd75757ad3ad531f772c736'
+          $actual = (Get-FileHash $weights -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected -or (Get-Item $weights).Length -ne 66894171) { throw 'Unexpected BSRGANx2 checkpoint bytes' }
+          "BSRGAN_WEIGHTS=$weights" >> $env:GITHUB_ENV
+
+      - name: Prepare static OpenVINO INT8 model and Apache notice
+        shell: pwsh
+        run: |
+          python -m scripts.build_bsrgan_ir --checkpoint $env:BSRGAN_WEIGHTS --sha256 614f68bcafcf123a1ea51cc75ae5741640a8b1d49dd75757ad3ad531f772c736 --output model-output
+          if ($LASTEXITCODE -ne 0) { throw 'Model conversion failed' }
+          Copy-Item third_party/BSRGAN-LICENSE.txt model-output/BSRGAN-LICENSE.txt
+          if (!(Test-Path model-output/BSRGANx2.xml) -or !(Test-Path model-output/BSRGANx2.bin)) { throw 'Model incomplete' }
+
       - name: Prepare release files and SHA256 sums
         shell: pwsh
         run: |
@@ -106,7 +128,9 @@ jobs:
           $portable = "NpuVideoUpscaler-v$env:APP_VERSION-win-x64-portable.zip"
           Copy-Item "dist/installer/$installer" "dist/release/$installer"
           Compress-Archive -Path "dist/NpuVideoUpscaler" -DestinationPath "dist/release/$portable"
-          @($installer, $portable) | ForEach-Object {
+          $modelArchive = "BSRGANx2-OpenVINO-INT8.zip"
+          Compress-Archive -Path "model-output/*" -DestinationPath "dist/release/$modelArchive"
+          @($installer, $portable, $modelArchive) | ForEach-Object {
             $hash = (Get-FileHash "dist/release/$_" -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash *$_"
           } | Set-Content -Encoding ascii "dist/release/SHA256SUMS.txt"

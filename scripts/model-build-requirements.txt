@@ -1,0 +1,6 @@
+# Build-time only; not included in Windows app installer.
+torch>=2.5,<3
+openvino>=2025.0,<2027
+nncf>=2.15,<3
+numpy>=1.26,<3
+pytest>=8,<10
