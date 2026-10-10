@@ -25,3 +25,11 @@ Do not rely on this build to preserve HDR, VFR timestamps, subtitles, non-MP4-co
 - Setup fails closed if the model cannot compile on **NPU**; no silent CPU/GPU fallback. Cached validated model is auto-selected at next start.
 - Experimental BSRGANx2-OpenVINO-INT8.zip is a separate asset with its own SHA-256 digest, source provenance and Apache-2.0 license notice.
 - Core Ultra 5 125H NPU compilation, inference speed, and output quality remain **not physically verified**. This is NOT a production release.
+
+
+## v0.2.0a4 (publisher-direct FFmpeg bootstrap)
+
+- After installer launch or first portable start, opt in to download and verify FFmpeg 9.0.2 Essentials directly from GyanD's fixed GitHub Release. The app caches the two validated tools in per-user LocalAppData and no longer requires system PATH setup.
+- **FFmpeg binaries are NOT inside our installer/portable assets.** They are GPLv3 software with `libx264`, retrieved only from the upstream publisher after user consent. See https://ffmpeg.org/legal.html and docs/bundled-media-tools.md for exact pinned ZIP and SHA-256.
+- An Intel NPU driver help button opens Intel's official support site. No driver is bundled or silently installed.
+- The AI BSRGAN model remains a separate, opt-in project GitHub Release asset. Core Ultra 5 125H NPU inference and real old→new hardware updates still require validation.
