@@ -1,0 +1,16 @@
+name: Unit tests
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: python -m pip install numpy pytest
+      - name: Run pure contract tests (no NPU hardware)
+        run: python -m pytest -q
