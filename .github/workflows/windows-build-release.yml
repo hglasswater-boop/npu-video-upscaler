@@ -24,10 +24,128 @@ jobs:
       - name: Install package, test and build tools
         run: python -m pip install -e ".[dev]"
 
-      - name: Install FFmpeg for A/V regression tests
+      - name: Fetch and verify FFmpeg for A/V regression tests
         shell: pwsh
         run: |
-          choco install ffmpeg --yes --no-progress
+          $base = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "ffmpeg-essentials.zip"
+          Invoke-WebRequest -Uri $base -OutFile $zip
+          $expected = (Invoke-WebRequest -Uri "$base.sha256").Content.Trim().ToLowerInvariant()
+          if ($expected -notmatch '^[a-f0-9]{64}
+      - name: Unit and FFmpeg integration tests
+        run: python -m pytest -q -rs
+
+      - name: Resolve version from single source
+        id: version
+        shell: pwsh
+        run: |
+          $version = python -c "from npu_upscaler import __version__; print(__version__)"
+          $metadata = python -c "import importlib.metadata; print(importlib.metadata.version('npu-video-upscaler'))"
+          if ($version -ne $metadata) { throw "Version mismatch between source and wheel metadata" }
+          "app_version=$version" >> $env:GITHUB_OUTPUT
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Package GUI as Windows x64 onedir executable
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --collect-all openvino --name NpuVideoUpscaler launcher.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller packaging failed" }
+          if (!(Test-Path "dist/NpuVideoUpscaler/NpuVideoUpscaler.exe")) { throw "Packaged executable is missing" }
+
+      - name: Smoke test frozen executable
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "dist/NpuVideoUpscaler/NpuVideoUpscaler.exe").Path
+          $p = Start-Process -FilePath $exe -ArgumentList "--version" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Packaged executable CLI smoke test failed: $($p.ExitCode)" }
+          $env:NPU_UPSCALER_SMOKE_TEST = "1"
+          $p = Start-Process -FilePath $exe -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Packaged GUI launch smoke failed: $($p.ExitCode)" }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build per-user Inno Setup installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "Inno Setup 6 compiler not installed" }
+          & $iscc "/DAppVersion=$env:APP_VERSION" "installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed" }
+
+      - name: Smoke test unattended install (CI only)
+        shell: pwsh
+        run: |
+          $installer = "dist/installer/NpuVideoUpscaler-Setup-v$env:APP_VERSION-win-x64.exe"
+          if (!(Test-Path $installer)) { throw "Installer is missing" }
+          $p = Start-Process -FilePath (Resolve-Path $installer).Path -ArgumentList @("/VERYSILENT", "/NORESTART") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installer failed: $($p.ExitCode)" }
+          $installed = Join-Path $env:LOCALAPPDATA "Programs/NpuVideoUpscaler/NpuVideoUpscaler.exe"
+          if (!(Test-Path $installed)) { throw "Installed executable missing" }
+          $p = Start-Process -FilePath $installed -ArgumentList "--version" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installed executable smoke failed: $($p.ExitCode)" }
+
+      - name: Prepare release files and SHA256 sums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist/release -Force | Out-Null
+          $installer = "NpuVideoUpscaler-Setup-v$env:APP_VERSION-win-x64.exe"
+          $portable = "NpuVideoUpscaler-v$env:APP_VERSION-win-x64-portable.zip"
+          Copy-Item "dist/installer/$installer" "dist/release/$installer"
+          Compress-Archive -Path "dist/NpuVideoUpscaler" -DestinationPath "dist/release/$portable"
+          @($installer, $portable) | ForEach-Object {
+            $hash = (Get-FileHash "dist/release/$_" -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$_"
+          } | Set-Content -Encoding ascii "dist/release/SHA256SUMS.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-alpha-${{ steps.version.outputs.app_version }}
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-alpha-${{ needs.package.outputs.version }}
+          path: release-assets
+      - name: Publish immutable versioned GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.package.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Refusing to replace existing release $tag: bump version first" >&2
+            exit 1
+          fi
+          gh release create "$tag" release-assets/* \
+            --title "$tag (experimental alpha)" \
+            --notes-file .github/RELEASE_NOTES_ALPHA.md \
+            --target "$GITHUB_SHA" \
+            --prerelease
+) { throw "Invalid upstream FFmpeg checksum" }
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "FFmpeg archive checksum mismatch" }
+          $directory = Join-Path $env:RUNNER_TEMP "ffmpeg-essentials"
+          Expand-Archive $zip -DestinationPath $directory
+          $probe = Get-ChildItem $directory -Filter "ffprobe.exe" -Recurse | Select-Object -First 1
+          if (!$probe) { throw "FFprobe was not found in verified archive" }
+          $bin = $probe.Directory.FullName
+          if (!(Test-Path (Join-Path $bin "ffmpeg.exe"))) { throw "FFmpeg was not found in verified archive" }
+          "$bin" >> $env:GITHUB_PATH
+          $env:PATH = "$bin;$env:PATH"
           ffmpeg -version | Select-Object -First 1
           ffprobe -version | Select-Object -First 1
 
