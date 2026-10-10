@@ -2,7 +2,7 @@
 import pytest
 
 
-def test_installed_model_is_selected_at_gui_startup(monkeypatch, tmp_path):
+def test_installed_model_is_selected_at_gui_startup(monkeypatch, tmp_path, qt_app):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
     import npu_upscaler.gui as gui
