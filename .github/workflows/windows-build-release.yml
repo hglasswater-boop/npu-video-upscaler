@@ -33,7 +33,10 @@ jobs:
           $expected = (Invoke-WebRequest -Uri "$base.sha256").Content.Trim().ToLowerInvariant()
           if ($expected.Length -ne 64 -or $expected -match "[^a-f0-9]") { throw "Invalid upstream FFmpeg checksum" }
           $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $expected) { throw "FFmpeg archive checksum mismatch" }
+          $pinned = '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
+          if ($actual -ne $expected -or $actual -ne $pinned) {
+            throw "FFmpeg archive does not match vendor SHA256 and pinned 9.0.2 bytes"
+          }
           $directory = Join-Path $env:RUNNER_TEMP "ffmpeg-essentials"
           Expand-Archive -Path $zip -DestinationPath $directory
           $probe = Get-ChildItem -Path $directory -Filter "ffprobe.exe" -Recurse | Select-Object -First 1
