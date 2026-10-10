@@ -57,7 +57,12 @@ def load_npu_model(model_path: Path, core=None):
             raise ModelError('OpenVINO is not installed') from exc
         core = ov.Core()
     if 'NPU' not in core.available_devices:
-        raise ModelError('Intel NPU is not visible to OpenVINO; check driver and hardware')
+        raise ModelError(
+            'Intel NPU is not visible to OpenVINO. For Core Ultra 5 125H, open '
+            'Windows Device Manager > Neural processors and verify Intel AI Boost; '
+            'install/update the official Intel NPU driver, then reboot if needed: '
+            'https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html'
+        )
     try:
         model = core.read_model(str(model_path))
         compiled = core.compile_model(model, 'NPU')
