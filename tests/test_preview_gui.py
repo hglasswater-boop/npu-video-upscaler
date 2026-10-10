@@ -11,7 +11,12 @@ def win(monkeypatch):
     from PySide6.QtWidgets import QApplication
     from npu_upscaler import gui
     app = QApplication.instance() or QApplication([])
-    monkeypatch.setattr(gui.QTimer, 'singleShot', lambda *args: None)
+    class NoStartupTimer:
+        @staticmethod
+        def singleShot(*args):
+            pass
+
+    monkeypatch.setattr(gui, 'QTimer', NoStartupTimer)
     window = gui.MainWindow()
     yield window
     window.close()
