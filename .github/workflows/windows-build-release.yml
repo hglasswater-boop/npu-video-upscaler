@@ -139,8 +139,8 @@ jobs:
           set -euo pipefail
           tag="v$VERSION"
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Refusing to replace existing release $tag: bump version first" >&2
-            exit 1
+            echo "Existing release $tag is immutable; no new version, skipping publication."
+            exit 0
           fi
           gh release create "$tag" release-assets/* \
             --title "$tag (experimental alpha)" \
