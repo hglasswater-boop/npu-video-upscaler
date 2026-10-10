@@ -31,7 +31,19 @@ jobs:
           $zip = Join-Path $env:RUNNER_TEMP "ffmpeg-essentials.zip"
           Invoke-WebRequest -Uri $base -OutFile $zip
           $expected = (Invoke-WebRequest -Uri "$base.sha256").Content.Trim().ToLowerInvariant()
-          if ($expected -notmatch '^[a-f0-9]{64}
+          if ($expected.Length -ne 64 -or $expected -match "[^a-f0-9]") { throw "Invalid upstream FFmpeg checksum" }
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "FFmpeg archive checksum mismatch" }
+          $directory = Join-Path $env:RUNNER_TEMP "ffmpeg-essentials"
+          Expand-Archive -Path $zip -DestinationPath $directory
+          $probe = Get-ChildItem -Path $directory -Filter "ffprobe.exe" -Recurse | Select-Object -First 1
+          if (!$probe) { throw "FFprobe missing in verified archive" }
+          $bin = $probe.Directory.FullName
+          if (!(Test-Path (Join-Path $bin "ffmpeg.exe"))) { throw "FFmpeg missing in verified archive" }
+          "$bin" >> $env:GITHUB_PATH
+          $env:PATH = "$bin;$env:PATH"
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
       - name: Unit and FFmpeg integration tests
         run: python -m pytest -q -rs
 
