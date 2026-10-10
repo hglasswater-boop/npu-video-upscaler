@@ -6,7 +6,8 @@ import os
 import subprocess
 import time
 
-from PySide6.QtCore import QThread, Signal, QSettings, QTimer
+from PySide6.QtCore import QThread, Signal, QSettings, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QMainWindow, QMessageBox,
                                QProgressBar, QPushButton, QVBoxLayout, QWidget, QCheckBox)
@@ -122,6 +123,8 @@ class MainWindow(QMainWindow):
         self.model = self._picker(form, 'OpenVINO model XML', 'OpenVINO IR (*.xml)', False)
         self.model_setup_btn = QPushButton('Install model ZIP')
         form.addRow('AI model setup', self.model_setup_btn)
+        self.driver_help_btn = QPushButton('Intel NPU driver help')
+        form.addRow('NPU driver', self.driver_help_btn)
         self.model_download_btn = QPushButton('Download AI model')
         form.addRow('Trusted GitHub model', self.model_download_btn)
         prepared_model = find_prepared_model()
@@ -164,6 +167,9 @@ class MainWindow(QMainWindow):
         self.update_btn.clicked.connect(self.check_updates)
         self.model_setup_btn.clicked.connect(self.install_model_package_dialog)
         self.model_download_btn.clicked.connect(self.download_model_prompt)
+        self.driver_help_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(
+            'https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html'
+        )))
         if not prepared_model and self.settings.value('promptModelSetup', True, type=bool):
             QTimer.singleShot(2600, self.download_model_prompt)
         if self.auto_update.isChecked():
