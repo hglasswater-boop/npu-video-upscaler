@@ -143,6 +143,9 @@ class MainWindow(QMainWindow):
 
     def _suggest_output(self, *_ignored):
         """Change the suggested name only when the user has not edited it."""
+        if hasattr(self, 'start_btn'):
+            self.start_btn.setText('Start 60s preview' if self.preview.isChecked()
+                                   else 'Start NPU conversion')
         current = self.destination.text()
         if not self.source.text():
             return
@@ -153,10 +156,6 @@ class MainWindow(QMainWindow):
         suggestion = str(source.with_name(f'{source.stem}{suffix}.mp4'))
         self._suggested_output = suggestion
         self.destination.setText(suggestion)
-        if hasattr(self, 'start_btn'):
-            self.start_btn.setText('Start 60s preview' if self.preview.isChecked()
-                                   else 'Start NPU conversion')
-
     def _job_busy(self):
         return self.worker is not None and self.worker.isRunning()
 
