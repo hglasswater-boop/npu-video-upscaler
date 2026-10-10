@@ -44,6 +44,8 @@ def test_commands_use_rational_fps_and_stream_copy():
     dec = decoder_command("input file.mkv")
     enc = encoder_command("input file.mkv", "temporary.mp4", info, 4)
     assert dec[-1] == "pipe:1"
+    assert dec[dec.index("-fps_mode") + 1] == "passthrough"
+    assert "-vsync" not in dec
     assert ["-framerate", "30000/1001"] == enc[enc.index("-framerate"):enc.index("-framerate") + 2]
     assert ["-video_size", "132x68"] == enc[enc.index("-video_size"):enc.index("-video_size") + 2]
     assert enc[enc.index("-map") + 1] == "0:v:0"
