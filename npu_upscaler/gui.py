@@ -231,6 +231,53 @@ class MainWindow(QMainWindow):
         suggestion = str(source.with_name(f'{source.stem}{suffix}.mp4'))
         self._suggested_output = suggestion
         self.destination.setText(suggestion)
+    def _media_busy(self):
+        return self.media_download_worker is not None and self.media_download_worker.isRunning()
+
+    def download_ffmpeg_prompt(self):
+        if self._job_busy() or self._media_busy() or self._model_busy():
+            return
+        if find_installed_media_tools():
+            self.status.setText('FFmpeg and ffprobe are installed and verified.')
+            return
+        answer = QMessageBox.question(
+            self, 'Set up FFmpeg and ffprobe?',
+            'Download FFmpeg 9.0.2 directly from GyanD on GitHub (~115 MB)?\n'
+            'The publisher build is GPLv3: https://ffmpeg.org/legal.html\n'
+            'The app verifies its pinned SHA-256 and stores tools only in local app data. '
+            'No administrator privileges or PATH changes are needed.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            self.status.setText('FFmpeg not installed. Use Download FFmpeg before converting.')
+            return
+        self.media_download_worker = MediaDownloadWorker()
+        self.media_download_worker.progress_changed.connect(
+            lambda done, total: self.status.setText(
+                f'FFmpeg download: {done // (1024 * 1024)} / '
+                f'{total // (1024 * 1024)} MiB'
+            )
+        )
+        self.media_download_worker.completed.connect(self._media_ready)
+        self.media_download_worker.failed.connect(self._media_failed)
+        self.media_setup_btn.setEnabled(False)
+        self.start_btn.setEnabled(False)
+        self.status.setText('Downloading FFmpeg directly from publisher…')
+        self.media_download_worker.start()
+
+    def _media_ready(self):
+        self.media_setup_btn.setEnabled(True)
+        self.start_btn.setEnabled(True)
+        self.status.setText('FFmpeg installed. PATH configuration not required.')
+        if not self.model.text() and self.settings.value('promptModelSetup', True, type=bool):
+            QTimer.singleShot(300, self.download_model_prompt)
+
+    def _media_failed(self, message):
+        self.media_setup_btn.setEnabled(True)
+        self.start_btn.setEnabled(True)
+        self.status.setText(f'FFmpeg setup failed: {message}')
+        QMessageBox.warning(self, 'FFmpeg setup failed', message)
+
     def _model_busy(self):
         return ((self.model_setup_worker and self.model_setup_worker.isRunning())
                 or (self.model_download_worker and self.model_download_worker.isRunning()))
