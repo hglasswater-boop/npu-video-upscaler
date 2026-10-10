@@ -6,12 +6,15 @@ import os
 import subprocess
 import time
 
-from PySide6.QtCore import QThread, Signal, QSettings, QTimer
+from PySide6.QtCore import QThread, Signal, QSettings, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QMainWindow, QMessageBox,
                                QProgressBar, QPushButton, QVBoxLayout, QWidget, QCheckBox)
 
 from .pipeline import JobCancelled, run_video
+from .media_tools import (find_installed_media_tools, install_vendor_media_tools,
+                          resolve_media_tools, MediaToolsError)
 from .model_packages import find_prepared_model, install_model_zip
 from .model_download import choose_model_release
 from .updates import choose_update, download_installer, fetch_releases
@@ -104,6 +107,21 @@ class ModelDownloadWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class MediaDownloadWorker(QThread):
+    progress_changed = Signal(int, int)
+    completed = Signal()
+    failed = Signal(str)
+
+    def run(self):
+        try:
+            install_vendor_media_tools(
+                progress=lambda done, total: self.progress_changed.emit(done, total)
+            )
+            self.completed.emit()
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -114,6 +132,7 @@ class MainWindow(QMainWindow):
         self.update_download_worker = None
         self.model_setup_worker = None
         self.model_download_worker = None
+        self.media_download_worker = None
         self.pending_update = None
         self.settings = QSettings('NpuVideoUpscaler', 'NpuVideoUpscaler')
         layout = QVBoxLayout()
@@ -122,6 +141,10 @@ class MainWindow(QMainWindow):
         self.model = self._picker(form, 'OpenVINO model XML', 'OpenVINO IR (*.xml)', False)
         self.model_setup_btn = QPushButton('Install model ZIP')
         form.addRow('AI model setup', self.model_setup_btn)
+        self.media_setup_btn = QPushButton('Download FFmpeg from publisher')
+        form.addRow('Media tools', self.media_setup_btn)
+        self.driver_help_btn = QPushButton('Intel NPU driver help')
+        form.addRow('NPU driver', self.driver_help_btn)
         self.model_download_btn = QPushButton('Download AI model')
         form.addRow('Trusted GitHub model', self.model_download_btn)
         prepared_model = find_prepared_model()
@@ -164,8 +187,15 @@ class MainWindow(QMainWindow):
         self.update_btn.clicked.connect(self.check_updates)
         self.model_setup_btn.clicked.connect(self.install_model_package_dialog)
         self.model_download_btn.clicked.connect(self.download_model_prompt)
-        if not prepared_model and self.settings.value('promptModelSetup', True, type=bool):
-            QTimer.singleShot(2600, self.download_model_prompt)
+        self.media_setup_btn.clicked.connect(self.download_ffmpeg_prompt)
+        self.driver_help_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(
+            'https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html'
+        )))
+        if os.environ.get('NPU_UPSCALER_SMOKE_TEST') != '1':
+            if find_installed_media_tools() is None:
+                QTimer.singleShot(600, self.download_ffmpeg_prompt)
+            elif not prepared_model and self.settings.value('promptModelSetup', True, type=bool):
+                QTimer.singleShot(2600, self.download_model_prompt)
         if self.auto_update.isChecked():
             QTimer.singleShot(1500, self.check_updates)
 
@@ -202,12 +232,59 @@ class MainWindow(QMainWindow):
         suggestion = str(source.with_name(f'{source.stem}{suffix}.mp4'))
         self._suggested_output = suggestion
         self.destination.setText(suggestion)
+    def _media_busy(self):
+        return self.media_download_worker is not None and self.media_download_worker.isRunning()
+
+    def download_ffmpeg_prompt(self):
+        if self._job_busy() or self._media_busy() or self._model_busy():
+            return
+        if find_installed_media_tools():
+            self.status.setText('FFmpeg and ffprobe are installed and verified.')
+            return
+        answer = QMessageBox.question(
+            self, 'Set up FFmpeg and ffprobe?',
+            'Download FFmpeg 9.0.2 directly from GyanD on GitHub (~115 MB)?\n'
+            'The publisher build is GPLv3: https://ffmpeg.org/legal.html\n'
+            'The app verifies its pinned SHA-256 and stores tools only in local app data. '
+            'No administrator privileges or PATH changes are needed.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            self.status.setText('FFmpeg not installed. Use Download FFmpeg before converting.')
+            return
+        self.media_download_worker = MediaDownloadWorker()
+        self.media_download_worker.progress_changed.connect(
+            lambda done, total: self.status.setText(
+                f'FFmpeg download: {done // (1024 * 1024)} / '
+                f'{total // (1024 * 1024)} MiB'
+            )
+        )
+        self.media_download_worker.completed.connect(self._media_ready)
+        self.media_download_worker.failed.connect(self._media_failed)
+        self.media_setup_btn.setEnabled(False)
+        self.start_btn.setEnabled(False)
+        self.status.setText('Downloading FFmpeg directly from publisher…')
+        self.media_download_worker.start()
+
+    def _media_ready(self):
+        self.media_setup_btn.setEnabled(True)
+        self.start_btn.setEnabled(True)
+        self.status.setText('FFmpeg installed. PATH configuration not required.')
+        if not self.model.text() and self.settings.value('promptModelSetup', True, type=bool):
+            QTimer.singleShot(300, self.download_model_prompt)
+
+    def _media_failed(self, message):
+        self.media_setup_btn.setEnabled(True)
+        self.start_btn.setEnabled(True)
+        self.status.setText(f'FFmpeg setup failed: {message}')
+        QMessageBox.warning(self, 'FFmpeg setup failed', message)
+
     def _model_busy(self):
         return ((self.model_setup_worker and self.model_setup_worker.isRunning())
                 or (self.model_download_worker and self.model_download_worker.isRunning()))
 
     def download_model_prompt(self):
-        if self._job_busy() or self._model_busy():
+        if self._job_busy() or self._model_busy() or self._media_busy():
             return
         answer = QMessageBox.question(
             self, 'Set up AI super-resolution?',
@@ -327,6 +404,14 @@ class MainWindow(QMainWindow):
         QApplication.instance().quit()
 
     def start_job(self):
+        if self._media_busy():
+            QMessageBox.warning(self, 'FFmpeg setup busy', 'Wait for FFmpeg setup to finish.')
+            return
+        try:
+            resolve_media_tools()
+        except MediaToolsError as exc:
+            QMessageBox.warning(self, 'FFmpeg required', str(exc))
+            return
         if self._model_busy():
             QMessageBox.warning(self, 'Model setup busy', 'Wait for NPU validation to finish.')
             return
@@ -380,7 +465,7 @@ class MainWindow(QMainWindow):
             event.ignore()
         elif ((self.update_check_worker and self.update_check_worker.isRunning())
               or (self.update_download_worker and self.update_download_worker.isRunning())
-              or self._model_busy()):
+              or self._model_busy() or self._media_busy()):
             self.status.setText('Waiting for update request to finish…')
             event.ignore()
         else:

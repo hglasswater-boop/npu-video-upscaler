@@ -81,8 +81,8 @@ def parse_probe(data: dict) -> VideoInfo:
     return VideoInfo(width, height, fps, len(audio), total)
 
 
-def probe_video(source: Path) -> VideoInfo:
-    args = ['ffprobe', '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(source)]
+def probe_video(source: Path, ffprobe_executable: str = 'ffprobe') -> VideoInfo:
+    args = [ffprobe_executable, '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(source)]
     try:
         output = subprocess.run(args, capture_output=True, text=True, check=True)
         return parse_probe(json.loads(output.stdout))
@@ -98,8 +98,9 @@ def preview_frame_cap(fps: Fraction) -> int:
     return cap
 
 
-def decoder_command(source: str | Path, max_frames: int | None = None) -> list[str]:
-    args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+def decoder_command(source: str | Path, max_frames: int | None = None,
+                    ffmpeg_executable: str = 'ffmpeg') -> list[str]:
+    args = [ffmpeg_executable, '-hide_banner', '-loglevel', 'error', '-nostdin',
             '-noautorotate', '-i', str(source), '-map', '0:v:0', '-an', '-sn', '-dn',
             '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24']
     if max_frames is not None:
@@ -110,10 +111,11 @@ def decoder_command(source: str | Path, max_frames: int | None = None) -> list[s
 
 
 def encoder_command(source: str | Path, destination: str | Path, info: VideoInfo,
-                    scale: int, max_duration: int | None = None) -> list[str]:
+                    scale: int, max_duration: int | None = None,
+                    ffmpeg_executable: str = 'ffmpeg') -> list[str]:
     if scale not in (2, 4):
         raise ValueError('Scale must be 2 or 4')
-    args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+    args = [ffmpeg_executable, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
             '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-video_size', f'{info.width * scale}x{info.height * scale}',
             '-framerate', f'{info.fps.numerator}/{info.fps.denominator}', '-i', 'pipe:0',
             '-i', str(source), '-map', '0:v:0', '-map', '1:a?',

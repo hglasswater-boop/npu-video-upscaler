@@ -13,6 +13,14 @@ Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with
 - 8-bit H.264 `libx264` MP4 output and stream copy of compatible AAC/MP3/AC-3/E-AC-3/ALAC audio. A silent source yields silent output.
 - Temporary output and cleanup on failure/cancel; no server uploads.
 
+## Publisher-direct FFmpeg setup (v0.2.0a4)
+
+The Windows installer and portable ZIP include the Python GUI and OpenVINO runtime, **but not FFmpeg binaries**. On first app launch, click **Yes** to download GyanD's **FFmpeg 9.0.2 Essentials** (~115 MB ZIP) from the publisher's versioned GitHub Release, verify the pinned SHA-256, then extract only ffmpeg/ffprobe into a user-local app cache. No administrator rights, global PATH settings, or Python installation are needed. You can decline and use **Download FFmpeg from publisher** later. After first setup, it works offline.
+
+**Licensing:** Gyan Essentials is a separate GPLv3-licensed upstream tool (`libx264` included), downloaded by the user directly from its original publisher, **not redistributed in our installer/portable/release assets**. See [setup and SHA-256 details](docs/bundled-media-tools.md) and [FFmpeg legal information](https://ffmpeg.org/legal.html).
+
+The Intel NPU driver remains OS-managed. If OpenVINO cannot see `NPU`, use the **Intel NPU driver help** button to open the [official driver page](https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html). Core Ultra 5 125H inference compatibility is still unverified.
+
 ## Install / launch from source
 
 1. Windows 11 64-bit; install latest [Intel NPU driver](https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html) compatible with your device.
@@ -56,7 +64,7 @@ The preview pipeline limits decoded **video frames** to at most `floor(60 × sou
 
 **Alpha version v0.2.0a1** adds a Windows x64 per-user Inno Setup installer and portable ZIP. After CI completes and the change is merged to main, packages are published under [GitHub Releases](https://github.com/hglasswater-boop/npu-video-upscaler/releases). PR builds provide temporary [GitHub Actions artifacts](https://github.com/hglasswater-boop/npu-video-upscaler/actions) only. **An alpha installer is a testing convenience, not evidence that NPU inference is supported on your 125H yet.**
 
-Install the `NpuVideoUpscaler-Setup-v*-win-x64.exe` asset (unsigned), then launch via Start Menu. Portable ZIP contains a self-contained application folder; FFmpeg and the Intel NPU driver must still be installed separately. The BSRGANx2 model is provided as a separate GitHub Release asset (v0.2.0a3+) and can be set up from the GUI after consent.
+Install the `NpuVideoUpscaler-Setup-v*-win-x64.exe` asset (unsigned), then launch via Start Menu. The portable ZIP needs no external Python; use the in-app setup to fetch FFmpeg directly from its publisher into LocalAppData. The Intel NPU driver must be installed separately. The BSRGANx2 model is provided as a separate GitHub Release asset (v0.2.0a3+) and can be set up from the GUI after consent.
 
 The desktop app checks GitHub Releases in a background thread at startup (toggle via **Check for updates on startup**) and has a **Check for updates** button. If a newer eligible release exists, approve the download, SHA-256 verification and interactive installer launch. Conversion jobs are not intentionally interrupted. Stable builds ignore prereleases; experimental builds may see alpha versions. Network activity for release checks is limited to the GitHub API and installer asset download; video data is never uploaded.
 

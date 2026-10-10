@@ -4,7 +4,6 @@ from pathlib import Path
 from threading import Event
 from typing import Callable
 import os
-import shutil
 import subprocess
 import tempfile
 import time
@@ -12,6 +11,7 @@ import time
 import numpy as np
 
 from .media import decoder_command, encoder_command, preview_frame_cap, probe_video
+from .media_tools import resolve_media_tools
 from .npu import load_npu_model, upscale_frame, UpscaleCancelled
 
 
@@ -96,10 +96,9 @@ def run_video(source: Path, model: Path, destination: Path,
     cancel = cancel if cancel is not None else Event()
     source, model, destination = Path(source), Path(model), Path(destination)
     validate_paths(source, model, destination)
-    if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
-        raise RuntimeError('FFmpeg and ffprobe must be on PATH')
+    media_tools = resolve_media_tools()
     check_not_cancelled(cancel)
-    info = probe_video(source)
+    info = probe_video(source, ffprobe_executable=media_tools.ffprobe)
     max_frames = preview_frame_cap(info.fps) if preview_seconds is not None else None
     progress_total = preview_progress_total(info) if preview_seconds is not None else info.total_frames
     compiled, shape = load_npu_model(model)
@@ -110,9 +109,12 @@ def run_video(source: Path, model: Path, destination: Path,
     with tempfile.TemporaryFile(mode='w+t', encoding='utf-8') as decode_log, \
          tempfile.TemporaryFile(mode='w+t', encoding='utf-8') as encode_log:
         try:
-            decoder = subprocess.Popen(decoder_command(source, max_frames=max_frames), stdout=subprocess.PIPE,
+            decoder = subprocess.Popen(decoder_command(source, max_frames=max_frames,
+                                                    ffmpeg_executable=media_tools.ffmpeg), stdout=subprocess.PIPE,
                                        stdin=subprocess.DEVNULL, stderr=decode_log)
-            encoder = subprocess.Popen(encoder_command(source, temporary, info, shape.scale, max_duration=preview_seconds),
+            encoder = subprocess.Popen(encoder_command(source, temporary, info, shape.scale,
+                                                    max_duration=preview_seconds,
+                                                    ffmpeg_executable=media_tools.ffmpeg),
                                        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=encode_log)
             frame_size = info.width * info.height * 3
 
