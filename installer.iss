@@ -23,6 +23,9 @@ UninstallDisplayIcon={app}\NpuVideoUpscaler.exe
 CloseApplications=yes
 RestartApplications=no
 
+[Languages]
+Name: "japanese"; MessagesFile: "compiler:Languages\\Japanese.isl"
+
 [Files]
 Source: "dist\NpuVideoUpscaler\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -30,4 +33,4 @@ Source: "dist\NpuVideoUpscaler\*"; DestDir: "{app}"; Flags: ignoreversion recurs
 Name: "{autoprograms}\NPU Video Upscaler"; Filename: "{app}\NpuVideoUpscaler.exe"
 
 [Run]
-Filename: "{app}\NpuVideoUpscaler.exe"; Description: "Launch NPU Video Upscaler and set up FFmpeg"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\NpuVideoUpscaler.exe"; Description: "インストール後にアプリを起動してFFmpegを設定する"; Flags: nowait postinstall skipifsilent
