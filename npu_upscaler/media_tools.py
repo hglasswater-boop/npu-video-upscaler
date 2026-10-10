@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 from tempfile import TemporaryDirectory
 from typing import Callable
 from urllib.error import URLError
@@ -76,8 +77,8 @@ def resolve_media_tools(root: Path | None = None) -> MediaTools:
         return installed
     if getattr(sys, "frozen", False):
         raise MediaToolsError(
-            "Set up FFmpeg and ffprobe using 'Download FFmpeg' in the application. "
-            "The installer does not redistribute third-party binaries; PATH is not used."
+            "FFmpeg が未設定です。アプリの「FFmpegをダウンロード」からセットアップしてください。"
+            " システムのPATH設定は不要です。"
         )
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
@@ -168,22 +169,44 @@ def install_vendor_media_tools(
             staging = workspace / "expanded"
             staging.mkdir()
             _extract_executables(archive, staging)
-            tools = MediaTools(str(staging / "ffmpeg.exe"), str(staging / "ffprobe.exe"))
-            _check_runtime(tools, runner)
             manifest = {
                 "vendor_sha256": VENDOR_SHA256,
                 **{name: _sha_file(staging / name) for name in _FILES}
             }
-            (staging / "checksums.json").write_text(
-                json.dumps(manifest, indent=2), encoding="utf-8"
-            )
             target = _version_dir(root)
-            if target.exists():
+            if target.exists() or target.is_symlink():
                 other = find_installed_media_tools(root)
                 if other:
                     return other
-                raise MediaToolsError("Existing FFmpeg cache is corrupted; remove it before retry")
-            os.replace(staging, target)
-            return MediaTools(str(target / "ffmpeg.exe"), str(target / "ffprobe.exe"))
+                if target.is_symlink():
+                    raise MediaToolsError("FFmpeg の保存先がシンボリックリンクです。安全のため中止しました。")
+                # A previous interrupted setup may leave an invalid directory.
+                shutil.rmtree(target)
+            # Never run PE files from a directory before renaming it on Windows.
+            for attempt in range(7):
+                try:
+                    os.replace(staging, target)
+                    break
+                except PermissionError:
+                    if attempt == 6:
+                        raise MediaToolsError(
+                            "FFmpeg フォルダーへの書き込みが拒否されました。"
+                            " セキュリティソフトの保護設定を確認し、アプリを再起動してお試しください。"
+                        )
+                    time.sleep(0.25)
+            tools = MediaTools(str(target / "ffmpeg.exe"), str(target / "ffprobe.exe"))
+            try:
+                # Cache becomes active only after successfully running final-path tools.
+                _check_runtime(tools, runner)
+                (target / "checksums.json").write_text(
+                    json.dumps(manifest, indent=2), encoding="utf-8"
+                )
+            except Exception:
+                try:
+                    shutil.rmtree(target)
+                except OSError:
+                    pass  # Absent manifest guarantees incomplete cache is never used.
+                raise
+            return tools
     except (URLError, TimeoutError, OSError, BadZipFile) as exc:
-        raise MediaToolsError(f"Cannot download/install FFmpeg from publisher: {exc}") from exc
+        raise MediaToolsError(f"FFmpeg のダウンロードまたはインストールに失敗しました。{exc}") from exc

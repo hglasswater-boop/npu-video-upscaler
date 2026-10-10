@@ -33,3 +33,11 @@ Do not rely on this build to preserve HDR, VFR timestamps, subtitles, non-MP4-co
 - **FFmpeg binaries are NOT inside our installer/portable assets.** They are GPLv3 software with `libx264`, retrieved only from the upstream publisher after user consent. See https://ffmpeg.org/legal.html and docs/bundled-media-tools.md for exact pinned ZIP and SHA-256.
 - An Intel NPU driver help button opens Intel's official support site. No driver is bundled or silently installed.
 - The AI BSRGAN model remains a separate, opt-in project GitHub Release asset. Core Ultra 5 125H NPU inference and real old→new hardware updates still require validation.
+
+
+## v0.2.0a5（WindowsのFFmpeg設定修正・日本語UI）
+
+- Windows環境でFFmpegセットアップの最後に発生する `[WinError 5] アクセスが拒否されました` を対策。実行ファイルを一時フォルダーで起動せず、最終インストール先への移動後に起動検証します。
+- Windowsの一時的なフォルダーロックには限定回数の再試行を実施し、検証完了まで不完全なセットアップ結果を有効扱いしません。以前の失敗で残った不完全なキャッシュも再試行時に復旧を試みます。
+- アプリの主要UI、FFmpeg・AIモデル・更新に関する確認画面、エラー表示を日本語化しました。インストーラの表示言語も日本語に対応しました。
+- v0.2.0a4→v0.2.0a5はアプリの更新確認からアップデートできます。Windows 11の実機更新・Core Ultra 5 125HのNPU推論は引き続き検証が必要です。

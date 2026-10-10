@@ -99,7 +99,7 @@ def test_download_failure_does_not_leave_active_executables(monkeypatch, tmp_pat
     def failed_run(*a, **kw):
         return subprocess.CompletedProcess(a, 1, b'', b'unsupported libx264')
 
-    with pytest.raises(media_tools.MediaToolsError, match='execution|encoder'):
+    with pytest.raises(media_tools.MediaToolsError, match='実行|エンコーダー|execution|encoder'):
         media_tools.install_vendor_media_tools(tmp_path, opener=opener, runner=failed_run)
     assert media_tools.find_installed_media_tools(tmp_path) is None
 
@@ -107,7 +107,7 @@ def test_download_failure_does_not_leave_active_executables(monkeypatch, tmp_pat
 def test_frozen_missing_media_tools_refuses_path_fallback(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, 'frozen', True, raising=False)
     monkeypatch.setattr(media_tools.shutil, 'which', lambda name: 'C:/bad/' + name)
-    with pytest.raises(media_tools.MediaToolsError, match='Set up FFmpeg'):
+    with pytest.raises(media_tools.MediaToolsError, match='FFmpeg'):
         media_tools.resolve_media_tools(root=tmp_path)
 
 
@@ -136,7 +136,7 @@ def test_build_cannot_distribute_ffmpeg_binaries():
 
 def test_release_installer_invokes_first_run_app_setup():
     installer = (Path(__file__).resolve().parents[1] / 'installer.iss').read_text(encoding='utf-8')
-    assert 'Launch NPU Video Upscaler and set up FFmpeg' in installer
+    assert 'インストール後にアプリを起動してFFmpegを設定する' in installer
     assert 'postinstall' in installer
 
 

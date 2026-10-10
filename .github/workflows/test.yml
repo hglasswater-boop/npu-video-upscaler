@@ -13,4 +13,12 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -e ".[dev]"
       - name: Run pure contract tests (no NPU hardware)
-        run: python -m pytest -q
+        shell: pwsh
+        run: |
+          python -m pytest -q --ignore=tests/test_guided_gui.py --ignore=tests/test_japanese_gui.py --ignore=tests/test_preview_gui.py --ignore=tests/test_model_setup_gui.py
+          $coreStatus = $LASTEXITCODE
+          Write-Host "Core pytest process exit: $coreStatus"
+          python -m pytest -q tests/test_guided_gui.py tests/test_japanese_gui.py tests/test_preview_gui.py tests/test_model_setup_gui.py
+          $uiStatus = $LASTEXITCODE
+          Write-Host "Qt pytest process exit: $uiStatus"
+          if ($coreStatus -ne 0 -or $uiStatus -ne 0) { throw "Python/Qt test process exit: core=$coreStatus qt=$uiStatus" }

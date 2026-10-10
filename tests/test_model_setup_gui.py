@@ -2,7 +2,7 @@
 import pytest
 
 
-def test_installed_model_is_selected_at_gui_startup(monkeypatch, tmp_path):
+def test_installed_model_is_selected_at_gui_startup(monkeypatch, tmp_path, qt_app):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
     import npu_upscaler.gui as gui
@@ -18,7 +18,7 @@ def test_installed_model_is_selected_at_gui_startup(monkeypatch, tmp_path):
     window = gui.MainWindow()
     try:
         assert window.model.text() == str(ir)
-        assert window.model_setup_btn.text() == "Install model ZIP"
+        assert window.model_setup_btn.text() == "モデルZIPをインストール"
         window._model_ready(str(ir))
         assert window.model.text() == str(ir)
     finally:
