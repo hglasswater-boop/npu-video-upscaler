@@ -34,4 +34,16 @@
 ## Installation and rollback
 - Installer installs to `{localappdata}\\Programs\\NpuVideoUpscaler` (stable AppId and location).
 - Inno Setup uninstaller handles removal; new version replaces previous installation. No bespoke migration logic or versioned executable replacement.
-- If a bad prerelease is published, GitHub Release maintainers must issue a newer version; do not replace checksummed artifacts at the same version.
+- If a bad prerelease is published, GitHub Release maintainers must issue a newer version; do not replace checksummed artifacts at the same version. Main pushes that only change tests/docs should detect an existing identical version and skip publishing that version (successfully) rather than attempting to overwrite it. Only a new version may publish new release assets.
+
+## Real published installer upgrade regression — Issue #8
+
+The automated Windows runner must download **actual published** v0.2.0a1 and v0.2.0a2 installer assets, validate each against pinned GitHub Release SHA-256 digest and size, and install in sequence. Neither package may be rebuilt from sources for this scenario.
+
+1. Verify the update checker returns **exactly v0.2.0a2** when asked to check the published v0.2.0a2 record from current version 0.2.0a1. Exercise `download_installer` to verify the complete release asset SHA-256; no installer is executed inside downloader.
+2. Install the exact downloaded v0.2.0a1 installer per-user. Inspect the single uninstall registry entry with DisplayName `NPU Video Upscaler` and DisplayVersion `0.2.0a1` and presence of installed `NpuVideoUpscaler.exe`.
+3. Seed the application's per-user QSettings location (`HKCU\\Software\\NpuVideoUpscaler\\NpuVideoUpscaler`) with `autoCheckUpdates=0` as a sentinel.
+4. Run v0.2.0a2 installer to the **same** installation path (no migration logic); require one uninstall entry and DisplayVersion 0.2.0a2. Verify the setting remains. The UI should still require consent before launching the installer; CI uses `/VERYSILENT` strictly to automate the regression, not as the app update policy.
+5. A corrupted/broken SHA-256 is already rejected by unit tests; updater must never trigger an installer if verification fails. A live device interactive update through GUI is still **not tested by CI** and remains a manual smoke test.
+
+For repeatability, pinned release artifact hashes come from published immutable-versioned assets and are documented in the workflow. Network/download errors fail the CI job. This workflow is manually triggerable to avoid repeated ~200 MB binary downloads on every commit and runs on a real Windows hosted runner (VM), **not** the Core Ultra 5 125H hardware.
