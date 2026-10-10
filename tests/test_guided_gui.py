@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.fixture
-def screen(monkeypatch):
+def screen(monkeypatch, qt_app):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
     import npu_upscaler.gui as gui
