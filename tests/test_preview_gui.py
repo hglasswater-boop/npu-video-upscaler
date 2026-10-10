@@ -35,9 +35,9 @@ def test_filename_suggestion_tracks_preview_but_never_replaces_manual_output(win
 def test_full_video_is_default_and_preview_worker_passes_duration(monkeypatch, win, tmp_path):
     from npu_upscaler import gui
     assert not win.preview.isChecked()
-    assert win.start_btn.text() == 'Start NPU conversion'
+    assert win.start_btn.text() == 'NPUで変換を開始'
     win.preview.setChecked(True)
-    assert win.start_btn.text() == 'Start 60s preview'
+    assert win.start_btn.text() == '先頭60秒を試す'
     observed = {}
 
     def fake_run_video(source, model, destination, progress, cancel, preview_seconds):
