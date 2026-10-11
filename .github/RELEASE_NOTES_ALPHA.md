@@ -55,4 +55,3 @@ Do not rely on this build to preserve HDR, VFR timestamps, subtitles, non-MP4-co
 MP4/MKV動画を1本、アプリ画面へドラッグ＆ドロップして選べます。先頭60秒プレビューの保存先候補も入ります。手動の保存先は保持し、変換はボタンで開始します。複数ファイルやフォルダー、変換中の入力差し替えは受け付けません。
 
 Qtイベント・日本語/UNCパス・不正なドロップを回帰テストし、Windows CIで検証します。Explorerから配布版への実際のドロップ操作は実機未検証です。NPU専用推論、音声保持、FFmpegセットアップと自動更新の仕様を維持しています。
-
