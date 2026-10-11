@@ -44,6 +44,19 @@ def test_valid_zip_is_compiled_with_npu_and_cached(tmp_path):
     assert find_prepared_model(root) == chosen
 
 
+def test_tile_optimization_identifies_only_verified_user_cache(monkeypatch,tmp_path):
+    from npu_upscaler.model_packages import is_packaged_bsrgan,model_cache_root
+    from shutil import copytree
+    monkeypatch.setenv('LOCALAPPDATA',str(tmp_path))
+    chosen=install_model_zip(sample_zip(tmp_path),model_cache_root(),compile_npu=lambda *_:None)
+    assert is_packaged_bsrgan(chosen)
+    copytree(chosen.parent,tmp_path/'external')
+    assert not is_packaged_bsrgan(tmp_path/'external'/'BSRGANx2.xml')
+    chosen.with_suffix('.bin').write_bytes(b'changed weights')
+    with pytest.raises(ModelPackageError,match='SHA-256'):
+        is_packaged_bsrgan(chosen)
+
+
 def test_changed_binary_is_rejected_and_not_installed(tmp_path):
     archive = sample_zip(tmp_path, lambda pieces, meta: pieces.update({"BSRGANx2.bin": b'evil'}))
     with pytest.raises(ModelPackageError, match="SHA-256"):

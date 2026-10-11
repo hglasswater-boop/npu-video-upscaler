@@ -43,8 +43,9 @@ def test_preview_is_default_and_preview_worker_passes_duration(monkeypatch, win,
     observed = {}
 
     def fake_run_video(source, model, destination, progress, cancel, preview_seconds, stage_changed,
-                       detail_progress):
+                       detail_progress, optimize_tiles):
         observed['seconds'] = preview_seconds
+        observed['optimize_tiles'] = optimize_tiles
         stage_changed('NPUモデル読み込み')
         return 3
 
@@ -55,6 +56,7 @@ def test_preview_is_default_and_preview_worker_passes_duration(monkeypatch, win,
     worker.stage_changed.connect(stages.append)
     worker.run()
     assert observed['seconds'] == 60
+    assert observed['optimize_tiles'] is True
     assert stages == ['NPUモデル読み込み']
 
 

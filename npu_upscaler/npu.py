@@ -6,6 +6,8 @@ from typing import Callable
 
 import numpy as np
 
+from .model_packages import is_packaged_bsrgan, model_cache_root
+
 
 class ModelError(ValueError):
     """The IR cannot be used by the narrow MVP inference contract."""
@@ -49,7 +51,7 @@ def validate_shape(input_shape, output_shape) -> ModelShape:
     return ModelShape(h, w, scale)
 
 
-def load_npu_model(model_path: Path, core=None):
+def load_npu_model(model_path: Path, core=None, optimize_tiles: bool = False):
     if core is None:
         try:
             import openvino as ov
@@ -64,8 +66,16 @@ def load_npu_model(model_path: Path, core=None):
             'https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html'
         )
     try:
+        optimized = optimize_tiles and is_packaged_bsrgan(model_path)
         model = core.read_model(str(model_path))
-        compiled = core.compile_model(model, 'NPU')
+        if optimized:
+            model.reshape([1, 3, 128, 128])
+            cache = model_cache_root().parent / 'NpuCache'
+            cache.mkdir(parents=True, exist_ok=True)
+            compiled = core.compile_model(model, 'NPU',
+                                          {'PERFORMANCE_HINT': 'LATENCY', 'CACHE_DIR': str(cache)})
+        else:
+            compiled = core.compile_model(model, 'NPU')
         shape = validate_shape(compiled.input(0).shape, compiled.output(0).shape)
         return compiled, shape
     except ModelError:

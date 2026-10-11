@@ -81,10 +81,11 @@ class Worker(QThread):
     cancelled = Signal()
 
     def __init__(self, source: Path, model: Path, destination: Path,
-                 preview_seconds: int | None = None):
+                 preview_seconds: int | None = None, optimize_tiles: bool = True):
         super().__init__()
         self.source, self.model, self.destination = source, model, destination
         self.preview_seconds = preview_seconds
+        self.optimize_tiles = optimize_tiles
         self.cancel_flag = Event()
 
     def run(self):
@@ -100,7 +101,7 @@ class Worker(QThread):
                                lambda done, total: self.progress_changed.emit(done, total or 0),
                                self.cancel_flag, preview_seconds=self.preview_seconds,
                                stage_changed=self.stage_changed.emit,
-                               detail_progress=report_detail)
+                               detail_progress=report_detail, optimize_tiles=self.optimize_tiles)
             self.succeeded.emit(frames)
         except JobCancelled:
             self.cancelled.emit()
@@ -493,7 +494,8 @@ class MainWindow(QMainWindow):
             return
         self.worker = Worker(Path(self.source.text()), Path(self.model.text()),
                              Path(self.destination.text()),
-                             preview_seconds=60 if self.preview.isChecked() else None)
+                             preview_seconds=60 if self.preview.isChecked() else None,
+                             optimize_tiles=self.optimize_tiles.isChecked())
         self._started_at = time.monotonic()
         self._progress_started_at = None
         self._progress_done = 0
