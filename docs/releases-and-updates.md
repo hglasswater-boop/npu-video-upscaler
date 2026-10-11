@@ -57,3 +57,11 @@ On first launch, if no cached model exists, the GUI offers an explicit opt-in do
 **Alpha status (2026-10-11):** Core Ultra 5 125H physical NPU compilation/inference and short synthetic A/V clips have been verified separately from CI; see [Issue #3](https://github.com/hglasswater-boop/npu-video-upscaler/issues/3). Representative 1080p 60-second completion, subjective quality/audio sync and power use remain unverified. The model remains experimental. If NPU compilation fails, the app reports the error; no silent CPU fallback.
 
 Starting with a10, verified cached BSRGAN uses static 128px tiles for inputs at least 256px on both axes. XML/BIN weights and compression remain unchanged. The advanced Japanese checkbox can restore 48px processing; manual external IR and initial package compatibility checks retain original shapes. Tile context changes can change pixels. [Physical timing and limitations](npu-throughput.md) describe the measured improvement, not a full-export time guarantee.
+
+## a10配布実体とa11修正 — Issue #28
+
+- 2026-10-11公開の `v0.2.0a10` はタグ上の `npu.py` / `pipeline.py` / `gui_layout.py` が**NPU専用**で、GPU選択UIが存在しない。バージョンと後から更新されたmainのREADMEだけをGPU対応の証拠にしない。
+- `v0.2.0a11` は main のGPU標準処理 + NPU明示選択を含む別タグで公開する。既存a10タグや配布済みインストーラは修正しない。
+- Windowsの配布CIではPyInstallerで凍結した実行ファイルの `--check-gpu-ui` を実行し、両選択肢が含まれていることを必須にする。ソース側もQt UIとGPU/NPU推論経路の単体テストを実行する。
+- 新Release発行後にタグの版数・GPU UI・GPUコンパイル経路、installer/portable/model/SHA256SUMSがすべて同じタグから作られていることを確認する。
+- 実機125H上のGPU検出・BSRGANモデルのコンパイル・5秒動画の品質/速度は未検証。CI上のUI smokeはGPU推論成功の代替ではない。
