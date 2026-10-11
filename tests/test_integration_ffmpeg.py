@@ -69,3 +69,16 @@ def test_cancel_preserves_existing_destination(monkeypatch, tmp_path):
         pipeline.run_video(source, xml, dest, cancel=cancel, progress=cancel_after_first)
     assert dest.read_bytes() == b'old content'
     assert not list(tmp_path.glob('.export-*.mp4'))
+
+
+def test_real_ffprobe_utf8_filename_and_metadata(monkeypatch, tmp_path):
+    from npu_upscaler.media import probe_video
+    source, _ = setup_input(tmp_path)
+    unicode_source = tmp_path / '日本語😀.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(source),
+                    '-c', 'copy', '-metadata', 'title=日本語😀', str(unicode_source)],
+                   capture_output=True, check=True)
+    import locale
+    monkeypatch.setattr(locale, 'getencoding', lambda: 'cp932')
+    info = probe_video(unicode_source)
+    assert (info.width, info.height, info.audio_streams) == (64, 48, 1)

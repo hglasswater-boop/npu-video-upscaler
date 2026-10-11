@@ -53,3 +53,18 @@ def test_full_video_is_default_and_preview_worker_passes_duration(monkeypatch, w
     worker.run()
     assert observed['seconds'] == 60
     assert stages == ['NPUモデル読み込み']
+
+
+def test_worker_emits_japanese_failure_and_log_path(monkeypatch, qt_app, tmp_path):
+    from npu_upscaler import gui
+    from npu_upscaler.pipeline import VideoJobError
+    log = tmp_path / 'diagnosis.log'
+    def fail(*a, **k):
+        raise VideoJobError('NPUモデル読み込み', log)
+    monkeypatch.setattr(gui, 'run_video', fail)
+    worker = gui.Worker(tmp_path / 'input.mp4', tmp_path / 'model.xml', tmp_path / 'out.mp4')
+    messages = []
+    worker.failed.connect(messages.append)
+    worker.run()
+    assert 'NPUモデル読み込みで失敗しました' in messages[0]
+    assert str(log) in messages[0]

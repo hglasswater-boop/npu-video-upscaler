@@ -27,3 +27,16 @@
 GUI通知を確認する。Windows CIは実FFmpegの音声・60秒・キャンセル、凍結exeと
 インストーラを確認する。モデル推論のmockは実機NPUの証拠ではない。
 125Hで新版のログを取得するまで、元の実機障害の解消を宣言しない。
+
+## 2026-10-11の実データ再現
+
+利用者指定のネットワーク共有上の動画で旧処理を実行した。
+Windows / Core Ultra 5 125H / Python 3.11.9 / locale CP932 において、
+subprocessの_readerthreadがUTF-8出力をCP932で読みUnicodeDecodeErrorとなる。
+stdout=Noneとなり、json.loadsが報告と同一のTypeErrorを発生させた。
+診断ログを保存し、修正後は同じファイルのJSON解析を通過した。
+ただし既存のr_frame_rateとavg_frame_rate一致条件を満たさずMediaErrorとなる。
+元動画のフルパスやタイトルは資料・公開ログに記載しない。
+
+この検証はJSON例外の原因と修正を実証するが、当該動画の変換成功を意味しない。
+CFR/SDR入力を使ったNPU変換は別途Issue #3で検証する。

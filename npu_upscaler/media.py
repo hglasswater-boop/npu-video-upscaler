@@ -59,7 +59,7 @@ def parse_probe(data: dict) -> VideoInfo:
             raise MediaError('Rotated video is not supported')
     fps = _fps(video.get('r_frame_rate'))
     if fps != _fps(video.get('avg_frame_rate')):
-        raise MediaError('Variable/ambiguous frame rates are not supported')
+        raise MediaError('フレームレートが可変または曖昧な動画には対応していません。固定フレームレート（CFR）のSDR動画を使用してください。')
     audio = [stream for stream in streams if stream.get('codec_type') == 'audio']
     for stream in audio:
         if stream.get('codec_name') not in _ALLOWED_AUDIO:
@@ -84,10 +84,30 @@ def parse_probe(data: dict) -> VideoInfo:
 def probe_video(source: Path, ffprobe_executable: str = 'ffprobe') -> VideoInfo:
     args = [ffprobe_executable, '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(source)]
     try:
-        output = subprocess.run(args, capture_output=True, text=True, check=True)
-        return parse_probe(json.loads(output.stdout))
-    except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError) as exc:
-        raise MediaError(f'ffprobe could not inspect video: {exc}') from exc
+        # Windows text-mode reader threads can die on a locale decode error and
+        # return stdout=None. Decode FFprobe's UTF-8 in this thread instead.
+        output = subprocess.run(args, capture_output=True, check=True, timeout=30)
+    except (subprocess.SubprocessError, OSError) as exc:
+        stderr = _probe_stderr(getattr(exc, 'stderr', None))
+        raise MediaError(f'動画情報を取得できませんでした（ffprobe）：{exc}\n{stderr}') from exc
+    stderr = _probe_stderr(output.stderr)
+    status = f'ffprobe exit={output.returncode}, stdout={type(output.stdout).__name__}'
+    if not isinstance(output.stdout, (str, bytes, bytearray)) or not output.stdout.strip():
+        raise MediaError(f'動画情報が空または取得不能です（{status}）。\n{stderr}')
+    try:
+        text = output.stdout if isinstance(output.stdout, str) else output.stdout.decode('utf-8')
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            raise MediaError('動画情報のJSONがオブジェクトではありません。')
+        return parse_probe(data)
+    except (UnicodeDecodeError, json.JSONDecodeError, MediaError, TypeError, AttributeError, KeyError) as exc:
+        raise MediaError(f'動画情報を解析できませんでした（{status}）：{exc}\n{stderr}') from exc
+
+
+def _probe_stderr(stderr) -> str:
+    if isinstance(stderr, (bytes, bytearray)):
+        stderr = stderr.decode('utf-8', errors='replace')
+    return str(stderr or '').strip()[-2500:]
 
 
 def preview_frame_cap(fps: Fraction) -> int:
