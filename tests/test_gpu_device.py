@@ -82,3 +82,16 @@ def test_gpu_stock_model_uses_128px_tiles_without_editing_cached_ir(monkeypatch,
     assert shapes == [[1, 3, 128, 128]]
     assert core.calls[0][0] == 'GPU'
     assert xml.read_text() == 'keep'
+
+
+def test_numbered_gpu_is_valid_available_openvino_device(tmp_path):
+    core = FakeCore(devices=('CPU', 'GPU.0', 'NPU'))
+    load_model(tmp_path / 'ir.xml', core=core, device='GPU')
+    assert core.calls[0][0] == 'GPU'
+
+
+def test_missing_gpu_error_lists_detected_devices(tmp_path):
+    core = FakeCore(devices=('NPU', 'CPU'))
+    with pytest.raises(ModelError, match='NPU, CPU'):
+        load_model(tmp_path / 'ir.xml', core=core, device='GPU')
+    assert core.calls == []

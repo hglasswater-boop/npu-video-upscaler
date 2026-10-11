@@ -90,3 +90,17 @@ def test_pipeline_optimizes_only_enabled_large_video(monkeypatch,tmp_path,width,
         pipeline.run_video(*paths,optimize_tiles=enabled)
     assert calls == [expected]
     assert paths[2].read_bytes() == b'previous export'
+
+
+@pytest.mark.parametrize('device', ['GPU', 'NPU'])
+def test_failure_log_records_requested_device_not_hardcoded_npu(monkeypatch, tmp_path, device):
+    paths = inputs(tmp_path)
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / 'local'))
+    def fail_setup():
+        raise RuntimeError('diagnostic failure')
+    monkeypatch.setattr(pipeline, 'resolve_media_tools', fail_setup)
+    with pytest.raises(pipeline.VideoJobError) as caught:
+        pipeline.run_video(*paths, device=device)
+    log = caught.value.log_path.read_text(encoding='utf-8')
+    assert f'inference_device={device}' in log
+    assert (('inference_device=NPU' in log) == (device == 'NPU'))

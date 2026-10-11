@@ -1,13 +1,13 @@
 # NPU Video Upscaler
 
-Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with Intel Core Ultra **NPU-only** inference using OpenVINO + FFmpeg. Development: [Issue #1](https://github.com/hglasswater-boop/npu-video-upscaler/issues/1).
+Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with **Intel Arc GPU as the default**, and an explicitly selectable Intel NPU mode, using OpenVINO + FFmpeg. Development: [Issue #1](https://github.com/hglasswater-boop/npu-video-upscaler/issues/1).
 
-> **Not yet tested on a Core Ultra 5 125H.** The v0.2.0a3 alpha offers an opt-in download of a **separate experimental BSRGANx2 OpenVINO model ZIP** from this project's GitHub Releases. It can be used only after compilation on the local Intel NPU succeeds; successful compilation on Core Ultra 5 125H remains unverified.
+> **GPU hardware compatibility is not yet validated on Core Ultra 5 125H.** NPU inference on 125H has been tested separately. The separate experimental BSRGANx2 model ZIP is available from project Releases, with a compile check on the selected GPU/NPU. Published **a10 was NPU-only despite its version**; GPU selection first ships in **a11**.
 
 ## Supported MVP
 
 - PySide6 GUI: choose video, model XML and MP4 destination; start, progress and cancel.
-- `OpenVINO Core().compile_model(model, "NPU")` uses the NPU exclusively. **No silent CPU/GPU fallback.**
+- `OpenVINO Core().compile_model(model, "GPU")` is the default, with NPU as an explicit option. **No silent CPU/NPU fallback when GPU is selected.**
 - Static [1,3,H,W] normalized RGB model input and [1,3,H×S,W×S] output, where S is **2 or 4**. Overlapping tiles handle arbitrary input image width/height while retaining a fixed model shape.
 - Constant-frame-rate **SDR, 8-bit** MP4/MKV source; fractional FPS (e.g., 30000/1001) retained nominally.
 - 8-bit H.264 `libx264` MP4 output and stream copy of compatible AAC/MP3/AC-3/E-AC-3/ALAC audio. A silent source yields silent output.
@@ -29,9 +29,9 @@ Windows 11で確認された `[WinError 5] アクセスが拒否されました`
 
 すでにv0.2.0a4を使っている場合は、アプリの**「更新を確認」**からv0.2.0a5に更新するか、GitHub Releasesで新しいインストーラを実行してください。設定・キャッシュはユーザー領域に保存されます。Windowsユーザーによる再試験と125H実機のNPU動作確認は未完了です。
 
-## GPU標準モード（v0.2.0a10）
+## GPU標準モード（v0.2.0a11）
 
-ユーザーの指示により、Intel Core Ultra 5 125Hの**Intel Arc GPUによるAI超解像**を標準に変更しました。従来のNPUは選択可能な省電力モードとして残します。日本語画面の「AI推論デバイス」から選べます。**GPUが利用できない場合にもNPU/CPU/AUTOには自動切替しません。**
+**v0.2.0a10の公開バイナリはNPU専用でした。GPU選択できない問題をv0.2.0a11で修正します。** Intel Core Ultra 5 125Hの**Intel Arc GPUによるAI超解像**を標準に変更しました。従来のNPUは選択可能な省電力モードとして残します。日本語画面の「AI推論デバイス」から選べます。**GPUが利用できない場合にもNPU/CPU/AUTOには自動切替しません。**
 
 既存のBSRGANx2モデルを継続利用し、検証済みキャッシュモデルのみメモリ上で128pxへreshapeします。ただしOpenVINO GPUでのBSRGAN INT8_ASYMモデル互換性、画像品質、実行速度はCore Ultra 5 125H実機で**未検証**です。速度改善は保証しません。まず約5秒の1080p動画でGPU検出・コンパイル・処理時間を記録してください。動画の60秒処理に要する時間の従来の「約26時間」は推定であり、完走した記録ではありません。
 

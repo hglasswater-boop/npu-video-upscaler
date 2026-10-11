@@ -23,7 +23,7 @@ def sanitized(text: str, paths=()) -> str:
     return text
 
 
-def save_failure(exc: Exception, stage: str, paths, preview_seconds) -> Path | None:
+def save_failure(exc: Exception, stage: str, paths, preview_seconds, device: str) -> Path | None:
     try:
         base = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'NpuVideoUpscaler' / 'Logs'
         base.mkdir(parents=True, exist_ok=True)
@@ -31,7 +31,7 @@ def save_failure(exc: Exception, stage: str, paths, preview_seconds) -> Path | N
         path = base / f'conversion-{stamp}-{uuid.uuid4().hex[:8]}.log'
         lines = [f'NPU Video Upscaler {__version__}', f'UTC={stamp}',
                  f'Python={platform.python_version()}', f'stage={stage}',
-                 f'preview_seconds={preview_seconds}', 'inference_device=NPU']
+                 f'preview_seconds={preview_seconds}', f'inference_device={device}']
         for package in ('openvino', 'PySide6'):
             try:
                 lines.append(f'{package}={version(package)}')
