@@ -4,13 +4,13 @@
 ```text
 PySide6 GUI → conversion QThread
        ↓
-ffprobe validate media → OpenVINO IR compile_model('NPU')
+ffprobe validate media → OpenVINO IR compile_model(selected 'GPU' or 'NPU')
        ↓
-FFmpeg RGB decode → overlap tile → NPU inference → FFmpeg encode + audio copy
+FFmpeg RGB decode → overlap tile → selected GPU/NPU inference → FFmpeg encode + audio copy
        ↓
 temporary MP4 → atomic final rename on success
 ```
-The CPU handles tiling and frame transfer, the NPU handles inference, FFmpeg handles media. No AUTO/CPU/GPU fallback.
+The CPU handles tiling and frame transfer, the explicitly selected GPU (default) or NPU handles inference, and FFmpeg handles media. No automatic fallback to another inference device.
 
 ## Release and update pipeline (Issue #4)
 ```text
