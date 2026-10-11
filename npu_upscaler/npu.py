@@ -60,9 +60,12 @@ def load_model(model_path, device='GPU', core=None, optimize_tiles=False):
     if core is None:
         import openvino as ov
         core = ov.Core()
-    if 'GPU' not in core.available_devices:
-        raise ModelError('Intel GPUがOpenVINOで認識されません。'
-                         ' ドライバーを確認してください。CPU/NPUへ自動切替しません。')
+    available_devices = core.available_devices
+    if not any(item == 'GPU' or item.startswith('GPU.') for item in available_devices):
+        detected = ', '.join(available_devices) or 'なし'
+        raise ModelError(f'Intel GPUがOpenVINOで認識されません。認識デバイス: {detected}。'
+                         ' GPUドライバーおよび配布版OpenVINOのGPUプラグインを確認してください。'
+                         ' CPU/NPUへ自動切替しません。')
     try:
         model = core.read_model(str(model_path))
         if optimize_tiles and is_packaged_bsrgan(model_path):
