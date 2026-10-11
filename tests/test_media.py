@@ -60,3 +60,29 @@ def test_probes_rotation_metadata():
     data["streams"][0]["tags"] = {"rotate": "90"}
     with pytest.raises(MediaError):
         parse_probe(data)
+
+
+@pytest.mark.parametrize('avg', [
+    '1861699207/62118759', '2997/100', '300003/10000',
+])
+def test_nominal_cfr_tiny_rate_difference_preserves_exact_nominal(avg):
+    nominal = '30/1' if avg == '300003/10000' else '30000/1001'
+    assert parse_probe(probe(fps=nominal, avg=avg)).fps == Fraction(nominal)
+
+
+@pytest.mark.parametrize('avg', ['300004/10000', '0/0', '0/1', '-30/1', '241/1', 'N/A'])
+def test_nominal_cfr_invalid_or_larger_difference_is_rejected(avg):
+    with pytest.raises(MediaError):
+        parse_probe(probe(fps='30/1', avg=avg))
+
+
+def test_decoder_normalizes_timestamps_to_exact_rational_fps():
+    command = decoder_command('input.mp4', fps=Fraction(30000, 1001), max_frames=1798)
+    assert command[command.index('-vf') + 1] == 'fps=30000/1001:start_time=0:round=near'
+    assert command.index('-vf') > command.index('-i')
+    assert command[command.index('-frames:v') + 1] == '1798'
+
+
+def test_decoder_rejects_invalid_normalization_rate():
+    with pytest.raises(MediaError):
+        decoder_command('input.mp4', fps=Fraction(0))
