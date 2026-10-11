@@ -1,4 +1,4 @@
-"""Static-shape OpenVINO NPU inference with deterministic overlap tiling."""
+"""GPU-default and optional NPU OpenVINO inference with deterministic overlap tiling."""
 
 from dataclasses import dataclass
 from pathlib import Path
