@@ -1,3 +1,3 @@
-"""NPU-only video upscaling prototype."""
+"""GPU-default, NPU-optional video upscaling prototype."""
 
-__version__ = "0.2.0a10"
+__version__ = "0.2.0a11"
