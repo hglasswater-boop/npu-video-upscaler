@@ -37,15 +37,16 @@ def test_preview_is_default_and_preview_worker_passes_duration(monkeypatch, win,
     assert win.preview.isChecked()
     assert win.start_btn.text() == '先頭60秒を試す'
     win.preview.setChecked(False)
-    assert win.start_btn.text() == 'NPUで変換を開始'
+    assert win.start_btn.text() == 'GPUで変換を開始'
     win.preview.setChecked(True)
     assert win.start_btn.text() == '先頭60秒を試す'
     observed = {}
 
     def fake_run_video(source, model, destination, progress, cancel, preview_seconds, stage_changed,
-                       detail_progress, optimize_tiles):
+                       detail_progress, optimize_tiles, device):
         observed['seconds'] = preview_seconds
         observed['optimize_tiles'] = optimize_tiles
+        observed['device'] = device
         stage_changed('NPUモデル読み込み')
         return 3
 
@@ -57,6 +58,7 @@ def test_preview_is_default_and_preview_worker_passes_duration(monkeypatch, win,
     worker.run()
     assert observed['seconds'] == 60
     assert observed['optimize_tiles'] is True
+    assert observed['device'] == 'GPU'
     assert stages == ['NPUモデル読み込み']
 
 
