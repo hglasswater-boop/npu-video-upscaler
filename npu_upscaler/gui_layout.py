@@ -54,7 +54,7 @@ def build_ui(w, prepared_model=None):
     selected = w.settings.value("inferenceDevice", "GPU")
     w.device_combo.setCurrentIndex(1 if selected == "NPU" else 0)
     w.device_combo.currentIndexChanged.connect(
-        lambda _: w.settings.setValue("inferenceDevice", w.device_combo.currentData())
+        lambda _: (w.settings.setValue("inferenceDevice", w.device_combo.currentData()), w._suggest_output())
     )
     device_row.addWidget(w.device_combo, 1)
     actions.addLayout(device_row)
