@@ -86,9 +86,9 @@ MP4/MKV動画を1本、アプリ画面へドラッグ＆ドロップして選べ
 Qtイベント・日本語/UNCパス・不正なドロップを回帰テストし、Windows CIで検証します。Explorerから配布版への実際のドロップ操作は実機未検証です。NPU専用推論、音声保持、FFmpegセットアップと自動更新の仕様を維持しています。
 
 
-## v0.2.0a10 — Intel Arc GPU default (experimental)
+## GPU移行の設計メモ（当初a10予定、実際の配布はa11）
 
-- **AI super-resolution runs on OpenVINO GPU by default**, targeting Intel Core Ultra 5 125H's integrated Intel Arc graphics. The former NPU-only engine is still available as an explicit power-saving choice in the Japanese UI.
+- **a10の配布実体はNPU専用。a11以降はOpenVINO GPUを標準に変更**, targeting Intel Core Ultra 5 125H's integrated Intel Arc graphics. The former NPU-only engine is still available as an explicit power-saving choice in the Japanese UI.
 - Device selection persists in app settings. New model ZIP installations compile-test on the selected accelerator, and conversions consistently use that same selected device. CPU/AUTO/NPU are **not** automatic fallback destinations.
 - The existing BSRGANx2 weight-compressed model is reused without loss of image quality from deliberately switching to a smaller model. Verified cached BSRGAN may be reshaped to 128px tiles on the GPU; its GPU compilation and speed on the physical 125H **remain unverified**.
 - Existing FFmpeg publisher-direct consent setup, SHA256 pin, offline media conversion, 60-second preview, audio copy, and release updater are retained.
