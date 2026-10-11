@@ -12,7 +12,7 @@ import numpy as np
 
 from .media import decoder_command, encoder_command, preview_frame_cap, probe_video
 from .media_tools import resolve_media_tools
-from .npu import load_npu_model, upscale_frame, UpscaleCancelled
+from .npu import load_model, upscale_frame, UpscaleCancelled
 from .diagnostics import save_failure
 
 
@@ -104,7 +104,7 @@ def run_video(source: Path, model: Path, destination: Path,
               stage_changed: Callable[[str], None] = lambda stage: None,
               detail_progress: Callable[[int, int | None, int, int], None] =
               lambda done, total, tile_done, tile_total: None,
-              optimize_tiles: bool = True) -> int:
+              optimize_tiles: bool = True, device: str = 'GPU') -> int:
     stage = '入力検査'
     def set_stage(value):
         nonlocal stage
@@ -112,7 +112,7 @@ def run_video(source: Path, model: Path, destination: Path,
         stage_changed(value)
     try:
         return _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage,
-                          detail_progress, optimize_tiles)
+                          detail_progress, optimize_tiles, device)
     except JobCancelled:
         raise
     except Exception as exc:
@@ -122,7 +122,7 @@ def run_video(source: Path, model: Path, destination: Path,
 
 
 def _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage,
-               detail_progress, optimize_tiles):
+               detail_progress, optimize_tiles, device):
     set_stage('入力検査')
     preview_seconds = preview_limit_seconds(preview_seconds)
     cancel = cancel if cancel is not None else Event()
@@ -136,9 +136,9 @@ def _run_video(source, model, destination, progress, cancel, preview_seconds, se
     max_frames = preview_frame_cap(info.fps) if preview_seconds is not None else None
     progress_total = preview_progress_total(info) if preview_seconds is not None else info.total_frames
     detail_progress(0, progress_total, 0, 0)
-    set_stage('NPUモデル読み込み')
-    compiled, shape = load_npu_model(
-        model, optimize_tiles=optimize_tiles and info.width >= 256 and info.height >= 256)
+    set_stage(f'{device}モデル読み込み')
+    compiled, shape = load_model(
+        model, device=device, optimize_tiles=optimize_tiles and info.width >= 256 and info.height >= 256)
     set_stage('変換準備')
     temporary = temporary_output_path(destination)
     decoder = encoder = None
@@ -168,7 +168,7 @@ def _run_video(source, model, destination, progress, cancel, preview_seconds, se
                 if pixels is None:
                     break
                 frame = np.frombuffer(pixels, dtype=np.uint8).reshape(info.height, info.width, 3)
-                set_stage('NPU推論')
+                set_stage(f'{device}推論')
                 try:
                     upscaled = upscale_frame(frame, shape, infer_tile, cancel.is_set,
                                              tile_progress=lambda done, total:
