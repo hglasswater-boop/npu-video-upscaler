@@ -1,15 +1,17 @@
-> **方針更新 2026-10-11:** GPU（Intel Arc）を標準推論先とし、NPUは明示選択できる省電力モードとして残す。CPU/AUTOへの自動フォールバック禁止。旧NPU-only指示よりユーザーの最新方針と docs/gpu-migration.md / Issue #23 を優先。\n\n# Repository instructions for Codex
+> **方針更新 2026-10-11:** GPU（Intel Arc）を標準推論先とし、NPUは明示選択できる省電力モードとして残す。CPU/AUTOへの自動フォールバック禁止。旧NPU-only指示よりユーザーの最新方針と docs/gpu-migration.md / Issue #23 を優先。
+
+# Repository instructions for Codex
 
 Read [docs/CODEX_HANDOFF.md](docs/CODEX_HANDOFF.md) at the start of a task. Also read the issue, relevant sources, tests and existing CI workflows. The handoff is a dated snapshot; **verify current GitHub state** and do not assume branches or issue statuses are still unchanged.
 
 ## Product and hard constraints
 
 - Product: **NPU Video Upscaler**, a Japanese-language Windows 11 x64 desktop app for offline MP4/MKV → upscaled H.264 MP4.
-- Target hardware: **Intel Core Ultra 5 125H**, Intel NPU via OpenVINO. Use `core.compile_model(model, "NPU")` only. **Never silently fall back to CPU, GPU, AUTO, MULTI or HETERO**. GitHub Windows runners are not evidence of real-device NPU support.
+- Target hardware: **Intel Core Ultra 5 125H**. OpenVINO Intel Arc `GPU` is the default; users can explicitly choose `NPU`. Never silently fall back to CPU, GPU, NPU or AUTO. GitHub Windows runners cannot validate real GPU/NPU performance.
 - Main user path: choose video → first-run FFmpeg/model setup → preview first 60 s (default) → optionally export full file. Keep the GUI understandable, **Japanese**, compact and responsive.
 - Media: nominally CFR SDR 8-bit, compatible audio copied via `-map 1:a? -c:a copy`; preserve exact rational FPS; no HDR/VFR/subtitle promises. Process with streaming FFmpeg input/output and temporary MP4, atomically replace destination **only on success**; cancel without harming prior output.
 - FFmpeg/ffprobe are downloaded **with explicit user consent directly from the publisher** as a pinned SHA-256-verified archive and cached per user. **Do not bundle or rehost GPLv3 Gyan FFmpeg binaries in our Release assets.** Frozen builds must not silently use arbitrary PATH FFmpeg. Intel NPU driver remains OS-managed.
-- AI model: separate experimental BSRGANx2 static OpenVINO INT8 ZIP, verified and compiled exclusively on NPU before selection. 125H physical compilation/inference/quality remain unverified unless a physical test is documented.
+- AI model: experimental BSRGANx2 static OpenVINO INT8 ZIP, checksum verified, compiled on the chosen GPU or NPU before selection. GPU inference on the 125H needs physical validation.
 - Updates: only canonical versioned GitHub Releases assets, verify SHA-256, obtain consent before download and installer launch, and do not interrupt active conversions. Never mutate published versioned assets.
 
 ## Engineering sequence
@@ -26,7 +28,7 @@ Read [docs/CODEX_HANDOFF.md](docs/CODEX_HANDOFF.md) at the start of a task. Also
 - `npu_upscaler/gui.py`, `gui_layout.py`: Japanese PySide6 interface / worker threads.
 - `npu_upscaler/media.py`, `pipeline.py`: ffprobe/FFmpeg media processing.
 - `npu_upscaler/media_tools.py`: consent-based FFmpeg bootstrap and verified per-user cache.
-- `npu_upscaler/npu.py`, `model_packages.py`, `model_download.py`: NPU model and download.
+- `npu_upscaler/npu.py`, `model_packages.py`, `model_download.py`: GPU/NPU model compilation and download.
 - `npu_upscaler/updates.py`: updater; `launcher.py`: Windows frozen executable entry.
 - `installer.iss`, `.github/workflows/test.yml`, `.github/workflows/windows-build-release.yml`: packaging, tests and alpha release.
 - `npu_upscaler/__init__.py`: single source for the application version.
