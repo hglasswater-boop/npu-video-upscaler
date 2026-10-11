@@ -103,7 +103,8 @@ def run_video(source: Path, model: Path, destination: Path,
               cancel: Event | None = None, preview_seconds: int | None = None,
               stage_changed: Callable[[str], None] = lambda stage: None,
               detail_progress: Callable[[int, int | None, int, int], None] =
-              lambda done, total, tile_done, tile_total: None) -> int:
+              lambda done, total, tile_done, tile_total: None,
+              optimize_tiles: bool = True) -> int:
     stage = '入力検査'
     def set_stage(value):
         nonlocal stage
@@ -111,7 +112,7 @@ def run_video(source: Path, model: Path, destination: Path,
         stage_changed(value)
     try:
         return _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage,
-                          detail_progress)
+                          detail_progress, optimize_tiles)
     except JobCancelled:
         raise
     except Exception as exc:
@@ -120,7 +121,8 @@ def run_video(source: Path, model: Path, destination: Path,
         raise VideoJobError(stage, log_path) from exc
 
 
-def _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage, detail_progress):
+def _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage,
+               detail_progress, optimize_tiles):
     set_stage('入力検査')
     preview_seconds = preview_limit_seconds(preview_seconds)
     cancel = cancel if cancel is not None else Event()
@@ -135,7 +137,8 @@ def _run_video(source, model, destination, progress, cancel, preview_seconds, se
     progress_total = preview_progress_total(info) if preview_seconds is not None else info.total_frames
     detail_progress(0, progress_total, 0, 0)
     set_stage('NPUモデル読み込み')
-    compiled, shape = load_npu_model(model)
+    compiled, shape = load_npu_model(
+        model, optimize_tiles=optimize_tiles and info.width >= 256 and info.height >= 256)
     set_stage('変換準備')
     temporary = temporary_output_path(destination)
     decoder = encoder = None

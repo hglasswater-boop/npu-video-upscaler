@@ -78,6 +78,11 @@ def build_ui(w, prepared_model=None):
     root.addWidget(w.advanced_btn)
     w.advanced_area = QWidget()
     advanced = QVBoxLayout(w.advanced_area)
+    w.optimize_tiles = QCheckBox('大きいタイルで処理を効率化（BSRGAN）')
+    w.optimize_tiles.setChecked(w.settings.value('optimizeNpuTiles', True, type=bool))
+    w.optimize_tiles.toggled.connect(
+        lambda checked: w.settings.setValue('optimizeNpuTiles', checked))
+    advanced.addWidget(w.optimize_tiles)
     model_form = QFormLayout()
     w.model = w._picker(model_form, "モデルXML", "OpenVINO IR (*.xml)", False)
     advanced.addLayout(model_form)

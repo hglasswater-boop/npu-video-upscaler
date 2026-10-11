@@ -73,7 +73,7 @@ class FakeModel:
 def prepare(tmp_path, monkeypatch):
     if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
         pytest.skip('FFmpeg tools not available')
-    monkeypatch.setattr(pipeline, 'load_npu_model', lambda path: (FakeModel(), ModelShape(24, 32, 2)))
+    monkeypatch.setattr(pipeline, 'load_npu_model', lambda path, **kwargs: (FakeModel(), ModelShape(24, 32, 2)))
 
     def create(seconds):
         source = tmp_path / f'src{seconds}.mp4'

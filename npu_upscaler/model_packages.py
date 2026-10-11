@@ -69,6 +69,16 @@ def _check_files(directory: Path) -> str:
         raise ModelPackageError(f"Invalid model package: {exc}") from exc
 
 
+def is_packaged_bsrgan(model_path: Path) -> bool:
+    """Recognize the validated stock user cache, not an external manual IR."""
+    model_path = Path(model_path).resolve()
+    if (model_path.name != 'BSRGANx2.xml'
+            or model_path.parent.parent != model_cache_root().resolve()):
+        return False
+    sha = _check_files(model_path.parent)
+    return model_path.parent.name == f'BSRGANx2-{sha[:12]}'
+
+
 def find_prepared_model(root: Path | None = None) -> Path | None:
     root = Path(root) if root is not None else model_cache_root()
     if not root.is_dir():
