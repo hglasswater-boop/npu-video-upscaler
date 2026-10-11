@@ -87,6 +87,8 @@ jobs:
           $exe = (Resolve-Path "dist/NpuVideoUpscaler/NpuVideoUpscaler.exe").Path
           $p = Start-Process -FilePath $exe -ArgumentList "--version" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Packaged executable CLI smoke test failed: $($p.ExitCode)" }
+          $p = Start-Process -FilePath $exe -ArgumentList "--check-gpu-ui" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Frozen app has no selectable GPU/NPU UI: $($p.ExitCode)" }
           $p = Start-Process -FilePath $exe -ArgumentList "--check-media" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Bundled FFmpeg/ffprobe CLI smoke test failed: $($p.ExitCode)" }
           $env:NPU_UPSCALER_SMOKE_TEST = "1"
@@ -116,6 +118,8 @@ jobs:
           if (!(Test-Path $installed)) { throw "Installed executable missing" }
           $p = Start-Process -FilePath $installed -ArgumentList "--version" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Installed executable smoke failed: $($p.ExitCode)" }
+          $p = Start-Process -FilePath $installed -ArgumentList "--check-gpu-ui" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installed app has no selectable GPU/NPU UI: $($p.ExitCode)" }
           $oldpath = $env:PATH
           try {
             $env:PATH = "$env:WINDIR\System32;$env:WINDIR"
