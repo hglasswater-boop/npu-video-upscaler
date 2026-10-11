@@ -4,7 +4,7 @@ import pytest
 
 def test_first_run_model_install_validates_on_gpu(monkeypatch, tmp_path):
     import npu_upscaler.npu as npu
-    from tests.test_model_packages import sample_zip
+    from test_model_packages import sample_zip
     from npu_upscaler.model_packages import install_model_zip
     called = []
     monkeypatch.setattr(npu, 'load_model', lambda path, device: called.append(device))
@@ -15,7 +15,7 @@ def test_first_run_model_install_validates_on_gpu(monkeypatch, tmp_path):
 
 def test_explicit_model_install_uses_npu_when_selected(monkeypatch, tmp_path):
     import npu_upscaler.npu as npu
-    from tests.test_model_packages import sample_zip
+    from test_model_packages import sample_zip
     from npu_upscaler.model_packages import install_model_zip
     called = []
     monkeypatch.setattr(npu, 'load_model', lambda path, device: called.append(device))
