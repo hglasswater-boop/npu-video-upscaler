@@ -81,7 +81,8 @@ def test_pipeline_optimizes_only_enabled_large_video(monkeypatch,tmp_path,width,
     monkeypatch.setattr(pipeline,'probe_video',lambda *a,**k:SimpleNamespace(
         fps=24,total_frames=120,width=width,height=height))
     calls=[]
-    def compiled(path,*,optimize_tiles):
+    def compiled(path,*,optimize_tiles,device):
+        assert device == 'GPU'
         calls.append(optimize_tiles)
         raise RuntimeError('stop before media subprocesses')
     monkeypatch.setattr(pipeline,'load_model',compiled)
