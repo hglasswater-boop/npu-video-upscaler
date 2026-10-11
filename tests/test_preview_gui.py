@@ -24,17 +24,19 @@ def win(monkeypatch, qt_app):
 
 def test_filename_suggestion_tracks_preview_but_never_replaces_manual_output(win, tmp_path):
     win.source.setText(str(tmp_path / 'movie.mkv'))
-    assert win.destination.text().endswith('movie_upscaled.mp4')
-    win.preview.setChecked(True)
     assert win.destination.text().endswith('movie_upscaled_preview60.mp4')
+    win.preview.setChecked(False)
+    assert win.destination.text().endswith('movie_upscaled.mp4')
     win.destination.setText(str(tmp_path / 'my_output.mp4'))
     win.preview.setChecked(False)
     assert win.destination.text().endswith('my_output.mp4')
 
 
-def test_full_video_is_default_and_preview_worker_passes_duration(monkeypatch, win, tmp_path):
+def test_preview_is_default_and_preview_worker_passes_duration(monkeypatch, win, tmp_path):
     from npu_upscaler import gui
-    assert not win.preview.isChecked()
+    assert win.preview.isChecked()
+    assert win.start_btn.text() == '先頭60秒を試す'
+    win.preview.setChecked(False)
     assert win.start_btn.text() == 'NPUで変換を開始'
     win.preview.setChecked(True)
     assert win.start_btn.text() == '先頭60秒を試す'
