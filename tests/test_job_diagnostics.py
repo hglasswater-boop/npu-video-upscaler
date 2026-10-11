@@ -26,8 +26,9 @@ def test_job_logs_exact_stage_traceback_and_preserves_output(monkeypatch, tmp_pa
     paths = inputs(tmp_path)
     monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / 'local'))
     monkeypatch.setattr(pipeline, 'resolve_media_tools', lambda: SimpleNamespace(ffprobe='ffprobe', ffmpeg='ffmpeg'))
-    monkeypatch.setattr(pipeline, 'probe_video', lambda *a, **k: SimpleNamespace(fps=24, total_frames=120))
-    monkeypatch.setattr(pipeline, 'load_npu_model', lambda *a: (None, None))
+    monkeypatch.setattr(pipeline, 'probe_video', lambda *a, **k: SimpleNamespace(
+        fps=24, total_frames=120, width=640, height=360))
+    monkeypatch.setattr(pipeline, 'load_npu_model', lambda *a, **k: (None, None))
     def fail(*a, **k):
         try:
             json.loads(None)
@@ -68,3 +69,23 @@ def test_cancellation_is_not_reported_as_failure(monkeypatch, tmp_path):
     with pytest.raises(pipeline.JobCancelled):
         pipeline.run_video(*paths, cancel=flag)
     assert not list(tmp_path.rglob('*.log'))
+
+
+@pytest.mark.parametrize(('width', 'height', 'enabled', 'expected'), [
+    (1920,1080,True,True), (640,360,False,False),
+    (64,48,True,False), (320,180,True,False), (256,256,True,True),
+])
+def test_pipeline_optimizes_only_enabled_large_video(monkeypatch,tmp_path,width,height,enabled,expected):
+    paths=inputs(tmp_path)
+    monkeypatch.setattr(pipeline,'resolve_media_tools',lambda:SimpleNamespace(ffprobe='unused'))
+    monkeypatch.setattr(pipeline,'probe_video',lambda *a,**k:SimpleNamespace(
+        fps=24,total_frames=120,width=width,height=height))
+    calls=[]
+    def compiled(path,*,optimize_tiles):
+        calls.append(optimize_tiles)
+        raise RuntimeError('stop before media subprocesses')
+    monkeypatch.setattr(pipeline,'load_npu_model',compiled)
+    with pytest.raises(pipeline.VideoJobError,match='NPUモデル読み込み'):
+        pipeline.run_video(*paths,optimize_tiles=enabled)
+    assert calls == [expected]
+    assert paths[2].read_bytes() == b'previous export'
