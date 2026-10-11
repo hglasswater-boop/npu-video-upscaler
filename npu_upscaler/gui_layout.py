@@ -1,6 +1,6 @@
 """Compact guided Windows UI layout: input → setup → 60s preview/full export."""
 from PySide6.QtWidgets import (
-    QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
+    QCheckBox, QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
     QLineEdit, QProgressBar, QPushButton, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -46,10 +46,22 @@ def build_ui(w, prepared_model=None):
 
     group3 = QGroupBox("③ 変換する")
     actions = QVBoxLayout(group3)
+    device_row = QHBoxLayout()
+    device_row.addWidget(QLabel("AI推論デバイス"))
+    w.device_combo = QComboBox()
+    w.device_combo.addItem("GPU（高速・Intel Arc）", "GPU")
+    w.device_combo.addItem("NPU（省電力）", "NPU")
+    selected = w.settings.value("inferenceDevice", "GPU")
+    w.device_combo.setCurrentIndex(1 if selected == "NPU" else 0)
+    w.device_combo.currentIndexChanged.connect(
+        lambda _: w.settings.setValue("inferenceDevice", w.device_combo.currentData())
+    )
+    device_row.addWidget(w.device_combo, 1)
+    actions.addLayout(device_row)
     w.preview = QCheckBox("先頭60秒だけ変換して画質を確認（おすすめ）")
     actions.addWidget(w.preview)
     buttons = QHBoxLayout()
-    w.start_btn = QPushButton("NPUで変換を開始")
+    w.start_btn = QPushButton("GPUで変換を開始")
     w.cancel_btn = QPushButton("キャンセル")
     w.cancel_btn.setEnabled(False)
     buttons.addWidget(w.start_btn, 1)
@@ -78,7 +90,7 @@ def build_ui(w, prepared_model=None):
     root.addWidget(w.advanced_btn)
     w.advanced_area = QWidget()
     advanced = QVBoxLayout(w.advanced_area)
-    w.optimize_tiles = QCheckBox('大きいタイルで処理を効率化（BSRGAN）')
+    w.optimize_tiles = QCheckBox('128pxタイルで処理を効率化（BSRGAN）')
     w.optimize_tiles.setChecked(w.settings.value('optimizeNpuTiles', True, type=bool))
     w.optimize_tiles.toggled.connect(
         lambda checked: w.settings.setValue('optimizeNpuTiles', checked))
