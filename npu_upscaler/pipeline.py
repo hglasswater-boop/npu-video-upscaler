@@ -117,7 +117,7 @@ def run_video(source: Path, model: Path, destination: Path,
         raise
     except Exception as exc:
         log_path = save_failure(exc, stage, (source, model, destination,
-                                            Path(model).with_suffix('.bin')), preview_seconds)
+                                            Path(model).with_suffix('.bin')), preview_seconds, device)
         raise VideoJobError(stage, log_path) from exc
 
 
