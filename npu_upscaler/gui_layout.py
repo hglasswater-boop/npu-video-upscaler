@@ -22,6 +22,7 @@ def build_ui(w, prepared_model=None):
     group1 = QGroupBox("① 動画を選ぶ")
     fields = QFormLayout(group1)
     w.source = w._picker(fields, "入力動画", "動画ファイル (*.mp4 *.mkv)", False)
+    w.source.setPlaceholderText("MP4 / MKVをここにドラッグ＆ドロップ")
     w.destination = w._picker(fields, "保存先（MP4）", "MP4 (*.mp4)", True)
     root.addWidget(group1)
     w._suggested_output = None

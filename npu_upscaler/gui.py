@@ -6,7 +6,7 @@ import os
 import subprocess
 import time
 
-from PySide6.QtCore import QThread, Signal, QSettings, QTimer, QUrl
+from PySide6.QtCore import QThread, Signal, QSettings, QTimer, QUrl, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QMainWindow, QMessageBox as QtMessageBox,
@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f'NPU Video Upscaler v{__version__} — 開発版')
+        self.setAcceptDrops(True)
         self.worker = None
         self.update_check_worker = None
         self.update_download_worker = None
@@ -210,7 +211,7 @@ class MainWindow(QMainWindow):
             "AIモデル：設定済み" if self.model.text()
             else "AIモデル：未設定（下のボタンでダウンロード）")
         if not self.source.text():
-            self.guidance.setText("次にすること：① 「参照…」から動画を選んでください。")
+            self.guidance.setText("次にすること：① 動画をドロップするか「参照…」で選んでください。")
         elif not self._media_ready_known:
             self.guidance.setText("次にすること：② FFmpegをダウンロードしてください。")
         elif not self.model.text():
@@ -221,6 +222,7 @@ class MainWindow(QMainWindow):
 
     def _picker(self, form, label, file_filter, save):
         edit = QLineEdit()
+        edit.setAcceptDrops(False)
         edit.setMinimumWidth(0)
         browse = QPushButton('参照…')
         row = QHBoxLayout()
@@ -237,6 +239,33 @@ class MainWindow(QMainWindow):
                 edit.setText(name)
         browse.clicked.connect(select)
         return edit
+
+    def _dropped_video(self, event):
+        if self._job_busy() or not (event.possibleActions() & Qt.DropAction.CopyAction):
+            return None
+        urls = event.mimeData().urls()
+        if len(urls) != 1 or not urls[0].isLocalFile():
+            return None
+        path = Path(urls[0].toLocalFile())
+        if path.suffix.lower() not in {'.mp4', '.mkv'} or not path.is_file():
+            return None
+        return path
+
+    def dragEnterEvent(self, event):
+        if self._dropped_video(event) is not None:
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        path = self._dropped_video(event)
+        if path is None:
+            event.ignore()
+            return
+        self.source.setText(str(path))
+        event.setDropAction(Qt.DropAction.CopyAction)
+        event.accept()
 
     def _suggest_output(self, *_ignored):
         """Change the suggested name only when the user has not edited it."""

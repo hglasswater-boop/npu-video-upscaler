@@ -109,6 +109,18 @@ def test_drop_preserves_manual_destination_and_model(screen, tmp_path):
     assert not screen.model.acceptDrops()
 
 
+def test_drop_unc_video_keeps_network_path(screen, monkeypatch):
+    import os
+    if os.name != 'nt':
+        pytest.skip('Windows UNC path semantics')
+    video = Path(r'\\server\share\日本語 動画.mp4')
+    monkeypatch.setattr(Path, 'is_file', lambda self: self == video)
+    entered, dropped, _ = drop_video(screen, file_mime(video))
+    assert entered and dropped
+    assert Path(screen.source.text()) == video
+    assert Path(screen.destination.text()).parent == video.parent
+
+
 @pytest.mark.parametrize("kind", ["multiple", "folder", "missing", "other", "web", "text"])
 def test_invalid_drop_keeps_selection(screen, tmp_path, kind):
     from PySide6.QtCore import QMimeData, QUrl
