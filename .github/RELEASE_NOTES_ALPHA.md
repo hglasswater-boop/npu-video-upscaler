@@ -1,5 +1,11 @@
 # NPU Video Upscaler — experimental alpha
 
+## v0.2.0a8（名目CFR動画の解析・時刻補正）
+
+- 平均FPSと名目FPSの微小な差（相対0.001%以下）を許容し、該当動画の「動画情報解析」失敗を修正。大きな不一致や不正FPSは引き続き拒否します。
+- 読み込み時に映像の時刻を名目FPSへ整えてからNPUへ渡します。必要に応じてフレームを間引き・複製し、出力の正確な有理数FPSと音声コピーを維持します。可変時刻の保存は保証しません。
+- 元動画の解析と先頭60秒分のFFmpeg読み込み、回帰テストで検証。60秒の1080p映像を実機NPUで最後まで変換した結果は別途確認が必要です。
+
 This prerelease is an **early Windows 11 x64 test build**, *not a validated finished upscaler*.
 
 - Windows per-user installer: `NpuVideoUpscaler-Setup-v*-win-x64.exe`.

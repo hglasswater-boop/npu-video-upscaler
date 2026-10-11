@@ -58,7 +58,10 @@ def parse_probe(data: dict) -> VideoInfo:
         if float(entry.get('rotation', 0)) != 0:
             raise MediaError('Rotated video is not supported')
     fps = _fps(video.get('r_frame_rate'))
-    if fps != _fps(video.get('avg_frame_rate')):
+    average = _fps(video.get('avg_frame_rate'))
+    # Container duration rounding can make avg_frame_rate differ slightly.
+    # Accepted frames are resampled by their timestamps before rawvideo output.
+    if abs(average - fps) > fps / 100000:
         raise MediaError('フレームレートが可変または曖昧な動画には対応していません。固定フレームレート（CFR）のSDR動画を使用してください。')
     audio = [stream for stream in streams if stream.get('codec_type') == 'audio']
     for stream in audio:
@@ -119,10 +122,13 @@ def preview_frame_cap(fps: Fraction) -> int:
 
 
 def decoder_command(source: str | Path, max_frames: int | None = None,
-                    ffmpeg_executable: str = 'ffmpeg') -> list[str]:
+                    ffmpeg_executable: str = 'ffmpeg', fps: Fraction | None = None) -> list[str]:
     args = [ffmpeg_executable, '-hide_banner', '-loglevel', 'error', '-nostdin',
             '-noautorotate', '-i', str(source), '-map', '0:v:0', '-an', '-sn', '-dn',
             '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24']
+    if fps is not None:
+        rate = _fps(fps)
+        args += ['-vf', f'fps={rate.numerator}/{rate.denominator}:start_time=0:round=near']
     if max_frames is not None:
         if type(max_frames) is not int or max_frames < 1:
             raise ValueError('Maximum frame count must be positive')

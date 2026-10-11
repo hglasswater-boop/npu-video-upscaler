@@ -141,7 +141,8 @@ def _run_video(source, model, destination, progress, cancel, preview_seconds, se
          tempfile.TemporaryFile(mode='w+t', encoding='utf-8') as encode_log:
         try:
             decoder = subprocess.Popen(decoder_command(source, max_frames=max_frames,
-                                                    ffmpeg_executable=media_tools.ffmpeg), stdout=subprocess.PIPE,
+                                                    ffmpeg_executable=media_tools.ffmpeg,
+                                                    fps=info.fps), stdout=subprocess.PIPE,
                                        stdin=subprocess.DEVNULL, stderr=decode_log)
             encoder = subprocess.Popen(encoder_command(source, temporary, info, shape.scale,
                                                     max_duration=preview_seconds,
