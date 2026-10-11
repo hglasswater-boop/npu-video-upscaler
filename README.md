@@ -1,13 +1,17 @@
 # NPU Video Upscaler
 
-Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with Intel Core Ultra **NPU-only** inference using OpenVINO + FFmpeg. Development: [Issue #1](https://github.com/hglasswater-boop/npu-video-upscaler/issues/1).
+Windows 11 **experimental desktop app** for offline MP4/MKV video upscaling with **Intel Arc GPU by default**, optional Intel NPU, OpenVINO and FFmpeg. Development: [Issue #1](https://github.com/hglasswater-boop/npu-video-upscaler/issues/1).
 
-> **Not yet tested on a Core Ultra 5 125H.** The v0.2.0a3 alpha offers an opt-in download of a **separate experimental BSRGANx2 OpenVINO model ZIP** from this project's GitHub Releases. It can be used only after compilation on the local Intel NPU succeeds; successful compilation on Core Ultra 5 125H remains unverified.
+> **GPU performance on a Core Ultra 5 125H is not yet physically verified.** Install v0.2.0a11 or later for the GPU/NPU choice. The checked BSRGANx2 model ZIP is provided separately in GitHub Releases; compilation on the selected device must succeed before conversion.
+
+## GPU-first Windows release (v0.2.0a11)
+
+**v0.2.0a10 was published before GPU mode was merged and remains NPU-only.** Use **v0.2.0a11** or newer. Under 「③ 変換する」 select 「GPU（高速・Intel Arc）」; this is the default for new settings. Previous NPU preference may persist, so check the selected device before running. The stock verified model supports the optional 128px tile optimization under 「詳細設定」; the hardware GPU compilation, performance and output quality require validation on an actual Core Ultra 5 125H. Start with a short video.
 
 ## Supported MVP
 
 - PySide6 GUI: choose video, model XML and MP4 destination; start, progress and cancel.
-- `OpenVINO Core().compile_model(model, "NPU")` uses the NPU exclusively. **No silent CPU/GPU fallback.**
+- `OpenVINO Core().compile_model(model, "GPU")` is the default on Intel Arc; the NPU may be explicitly selected. **No silent CPU/GPU/NPU fallback.**
 - Static [1,3,H,W] normalized RGB model input and [1,3,H×S,W×S] output, where S is **2 or 4**. Overlapping tiles handle arbitrary input image width/height while retaining a fixed model shape.
 - Constant-frame-rate **SDR, 8-bit** MP4/MKV source; fractional FPS (e.g., 30000/1001) retained nominally.
 - 8-bit H.264 `libx264` MP4 output and stream copy of compatible AAC/MP3/AC-3/E-AC-3/ALAC audio. A silent source yields silent output.
