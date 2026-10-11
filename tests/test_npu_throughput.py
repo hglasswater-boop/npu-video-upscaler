@@ -11,9 +11,10 @@ class Tensor:
 
 
 class Requests:
-    def __init__(self, optimal=4, fail_on=None):
+    def __init__(self, optimal=4, fail_on=None, fail_start_on=None):
         self.optimal = optimal
         self.fail_on = fail_on
+        self.fail_start_on = fail_start_on
         self.requests = []
         self.running = 0
         self.maximum_running = 0
@@ -52,6 +53,8 @@ class Request:
         self.owner.starts += 1
         self.number = self.owner.starts
         self.owner.maximum_running = max(self.owner.maximum_running, self.owner.running)
+        if self.number == self.owner.fail_start_on:
+            raise RuntimeError('NPU launch outcome unknown')
 
     def wait(self):
         self.waits += 1
@@ -124,4 +127,11 @@ def test_pixel_consumer_error_also_drains_inflight_requests():
             raise ValueError('progress consumer failed')
     with pytest.raises(ValueError, match='progress consumer failed'):
         run(npu.NpuTilePool(compiled),tile_progress=fail)
+    assert compiled.running == 0
+
+
+def test_launch_error_with_unknown_outcome_drains_the_attempted_request():
+    compiled = Requests(fail_start_on=3)
+    with pytest.raises(RuntimeError, match='NPU launch outcome unknown'):
+        run(npu.NpuTilePool(compiled))
     assert compiled.running == 0
