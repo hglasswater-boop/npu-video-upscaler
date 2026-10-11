@@ -1,4 +1,4 @@
-"""Static-shape OpenVINO NPU inference with deterministic overlap tiling."""
+"""GPU-default and optional NPU OpenVINO inference with deterministic overlap tiling."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +49,37 @@ def validate_shape(input_shape, output_shape) -> ModelShape:
     if scale not in (2, 4) or out[3] // w != scale:
         raise ModelError('Only 2x and 4x identical-axis scaling supported')
     return ModelShape(h, w, scale)
+
+
+def load_model(model_path, device='GPU', core=None, optimize_tiles=False):
+    """GPU is the explicit default; NPU is opt-in. Never use CPU/AUTO."""
+    if device not in ('GPU', 'NPU'):
+        raise ModelError('GPUまたはNPUを選択してください。')
+    if device == 'NPU':
+        return load_npu_model(model_path, core=core, optimize_tiles=optimize_tiles)
+    if core is None:
+        import openvino as ov
+        core = ov.Core()
+    if 'GPU' not in core.available_devices:
+        raise ModelError('Intel GPUがOpenVINOで認識されません。'
+                         ' ドライバーを確認してください。CPU/NPUへ自動切替しません。')
+    try:
+        model = core.read_model(str(model_path))
+        if optimize_tiles and is_packaged_bsrgan(model_path):
+            model.reshape([1, 3, 128, 128])
+            cache = model_cache_root().parent / 'GpuCache'
+            cache.mkdir(parents=True, exist_ok=True)
+            compiled = core.compile_model(model, 'GPU',
+                                          {'PERFORMANCE_HINT': 'THROUGHPUT',
+                                           'CACHE_DIR': str(cache)})
+        else:
+            compiled = core.compile_model(model, 'GPU')
+        shape = validate_shape(compiled.input(0).shape, compiled.output(0).shape)
+        return compiled, shape
+    except ModelError:
+        raise
+    except Exception as exc:
+        raise ModelError(f'GPU向けモデルのコンパイルに失敗しました: {exc}') from exc
 
 
 def load_npu_model(model_path: Path, core=None, optimize_tiles: bool = False):

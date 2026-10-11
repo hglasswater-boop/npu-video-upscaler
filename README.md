@@ -29,6 +29,14 @@ Windows 11で確認された `[WinError 5] アクセスが拒否されました`
 
 すでにv0.2.0a4を使っている場合は、アプリの**「更新を確認」**からv0.2.0a5に更新するか、GitHub Releasesで新しいインストーラを実行してください。設定・キャッシュはユーザー領域に保存されます。Windowsユーザーによる再試験と125H実機のNPU動作確認は未完了です。
 
+## GPU標準モード（v0.2.0a10）
+
+ユーザーの指示により、Intel Core Ultra 5 125Hの**Intel Arc GPUによるAI超解像**を標準に変更しました。従来のNPUは選択可能な省電力モードとして残します。日本語画面の「AI推論デバイス」から選べます。**GPUが利用できない場合にもNPU/CPU/AUTOには自動切替しません。**
+
+既存のBSRGANx2モデルを継続利用し、検証済みキャッシュモデルのみメモリ上で128pxへreshapeします。ただしOpenVINO GPUでのBSRGAN INT8_ASYMモデル互換性、画像品質、実行速度はCore Ultra 5 125H実機で**未検証**です。速度改善は保証しません。まず約5秒の1080p動画でGPU検出・コンパイル・処理時間を記録してください。動画の60秒処理に要する時間の従来の「約26時間」は推定であり、完走した記録ではありません。
+
+詳しくは [GPU移行設計](docs/gpu-migration.md) と [Issue #23](https://github.com/hglasswater-boop/npu-video-upscaler/issues/23) を参照してください。
+
 ## Publisher-direct FFmpeg setup (v0.2.0a4)
 
 The Windows installer and portable ZIP include the Python GUI and OpenVINO runtime, **but not FFmpeg binaries**. On first app launch, click **Yes** to download GyanD's **FFmpeg 9.0.2 Essentials** (~115 MB ZIP) from the publisher's versioned GitHub Release, verify the pinned SHA-256, then extract only ffmpeg/ffprobe into a user-local app cache. No administrator rights, global PATH settings, or Python installation are needed. You can decline and use **Download FFmpeg from publisher** later. After first setup, it works offline.

@@ -42,7 +42,7 @@ def setup_input(tmp_path):
 
 def test_real_ffmpeg_audio_is_copied_and_resolution_doubled(monkeypatch, tmp_path):
     source, xml = setup_input(tmp_path)
-    monkeypatch.setattr(pipeline, 'load_npu_model', lambda path, **kwargs: (NearestNeighborModel(), ModelShape(24, 32, 2)))
+    monkeypatch.setattr(pipeline, 'load_model', lambda path, **kwargs: (NearestNeighborModel(), ModelShape(24, 32, 2)))
     dest = tmp_path / 'export.mp4'
     detailed = []
     frames = pipeline.run_video(source, xml, dest,
@@ -65,7 +65,7 @@ def test_real_ffmpeg_audio_is_copied_and_resolution_doubled(monkeypatch, tmp_pat
 
 def test_cancel_preserves_existing_destination(monkeypatch, tmp_path):
     source, xml = setup_input(tmp_path)
-    monkeypatch.setattr(pipeline, 'load_npu_model', lambda path, **kwargs: (NearestNeighborModel(), ModelShape(24, 32, 2)))
+    monkeypatch.setattr(pipeline, 'load_model', lambda path, **kwargs: (NearestNeighborModel(), ModelShape(24, 32, 2)))
     dest = tmp_path / 'export.mp4'
     dest.write_bytes(b'old content')
     cancel = Event()
@@ -107,7 +107,7 @@ def test_timestamp_gap_is_filled_before_rawvideo_loses_timing(monkeypatch, tmp_p
     # Supply the selected rate to verify the pipeline's timestamp handling.
     monkeypatch.setattr(pipeline, 'probe_video', lambda *a, **k:
                         VideoInfo(32, 32, Fraction(2), 1, 5))
-    monkeypatch.setattr(pipeline, 'load_npu_model', lambda path, **kwargs:
+    monkeypatch.setattr(pipeline, 'load_model', lambda path, **kwargs:
                         (NearestNeighborModel(), ModelShape(24, 32, 2)))
     xml = tmp_path / 'model.xml'
     xml.write_text('fake model')

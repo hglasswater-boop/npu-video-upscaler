@@ -19,7 +19,7 @@ def inputs(tmp_path):
 
 @pytest.mark.parametrize(('target', 'stage'), [
     ('validate_paths', '入力検査'), ('resolve_media_tools', 'FFmpeg準備'),
-    ('probe_video', '動画情報解析'), ('load_npu_model', 'NPUモデル読み込み'),
+    ('probe_video', '動画情報解析'), ('load_model', 'GPUモデル読み込み'),
     ('temporary_output_path', '変換準備'),
 ])
 def test_job_logs_exact_stage_traceback_and_preserves_output(monkeypatch, tmp_path, target, stage):
@@ -28,7 +28,7 @@ def test_job_logs_exact_stage_traceback_and_preserves_output(monkeypatch, tmp_pa
     monkeypatch.setattr(pipeline, 'resolve_media_tools', lambda: SimpleNamespace(ffprobe='ffprobe', ffmpeg='ffmpeg'))
     monkeypatch.setattr(pipeline, 'probe_video', lambda *a, **k: SimpleNamespace(
         fps=24, total_frames=120, width=640, height=360))
-    monkeypatch.setattr(pipeline, 'load_npu_model', lambda *a, **k: (None, None))
+    monkeypatch.setattr(pipeline, 'load_model', lambda *a, **k: (None, None))
     def fail(*a, **k):
         try:
             json.loads(None)
@@ -81,11 +81,12 @@ def test_pipeline_optimizes_only_enabled_large_video(monkeypatch,tmp_path,width,
     monkeypatch.setattr(pipeline,'probe_video',lambda *a,**k:SimpleNamespace(
         fps=24,total_frames=120,width=width,height=height))
     calls=[]
-    def compiled(path,*,optimize_tiles):
+    def compiled(path,*,optimize_tiles,device):
+        assert device == 'GPU'
         calls.append(optimize_tiles)
         raise RuntimeError('stop before media subprocesses')
-    monkeypatch.setattr(pipeline,'load_npu_model',compiled)
-    with pytest.raises(pipeline.VideoJobError,match='NPUモデル読み込み'):
+    monkeypatch.setattr(pipeline,'load_model',compiled)
+    with pytest.raises(pipeline.VideoJobError,match='GPUモデル読み込み'):
         pipeline.run_video(*paths,optimize_tiles=enabled)
     assert calls == [expected]
     assert paths[2].read_bytes() == b'previous export'

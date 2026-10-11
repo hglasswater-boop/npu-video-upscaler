@@ -97,8 +97,9 @@ def find_prepared_model(root: Path | None = None) -> Path | None:
 
 
 def install_model_zip(archive: Path, root: Path | None = None,
-                      compile_npu: Callable | None = None) -> Path:
-    """Unpack checked bytes into private per-user cache only after NPU compile.
+                      compile_npu: Callable | None = None,
+                      device: str = 'GPU') -> Path:
+    """Unpack checked bytes into private per-user cache only after chosen GPU/NPU compile.
 
     ZIP is locally supplied by user: its self-reported hashes are integrity
     protection, NOT proof that it came from the project.
@@ -141,11 +142,11 @@ def install_model_zip(archive: Path, root: Path | None = None,
                     raise ModelPackageError("Prepared model cache is corrupted")
                 try:
                     if compile_npu is None:
-                        from .npu import load_npu_model
-                        compile_npu = load_npu_model
+                        from .npu import load_model
+                        compile_npu = lambda path: load_model(path, device=device)
                     compile_npu(staging / "BSRGANx2.xml")
                 except Exception as exc:
-                    raise ModelPackageError(f"NPU failed to compile model: {exc}") from exc
+                    raise ModelPackageError(f"{device} failed to compile model: {exc}") from exc
                 os.replace(staging, target_dir)
                 return target_dir / "BSRGANx2.xml"
     except (OSError, BadZipFile) as exc:

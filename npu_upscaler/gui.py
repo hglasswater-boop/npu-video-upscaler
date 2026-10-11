@@ -81,11 +81,13 @@ class Worker(QThread):
     cancelled = Signal()
 
     def __init__(self, source: Path, model: Path, destination: Path,
-                 preview_seconds: int | None = None, optimize_tiles: bool = True):
+                 preview_seconds: int | None = None, optimize_tiles: bool = True,
+                 device: str = 'GPU'):
         super().__init__()
         self.source, self.model, self.destination = source, model, destination
         self.preview_seconds = preview_seconds
         self.optimize_tiles = optimize_tiles
+        self.device = device
         self.cancel_flag = Event()
 
     def run(self):
@@ -101,7 +103,8 @@ class Worker(QThread):
                                lambda done, total: self.progress_changed.emit(done, total or 0),
                                self.cancel_flag, preview_seconds=self.preview_seconds,
                                stage_changed=self.stage_changed.emit,
-                               detail_progress=report_detail, optimize_tiles=self.optimize_tiles)
+                               detail_progress=report_detail, optimize_tiles=self.optimize_tiles,
+                               device=self.device)
             self.succeeded.emit(frames)
         except JobCancelled:
             self.cancelled.emit()
@@ -143,13 +146,14 @@ class ModelInstallWorker(QThread):
     completed = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, package: Path):
+    def __init__(self, package: Path, device: str = 'GPU'):
         super().__init__()
         self.package = package
+        self.device = device
 
     def run(self):
         try:
-            self.completed.emit(str(install_model_zip(self.package)))
+            self.completed.emit(str(install_model_zip(self.package, device=self.device)))
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -158,6 +162,10 @@ class ModelDownloadWorker(QThread):
     completed = Signal(str)
     failed = Signal(str)
 
+    def __init__(self, device: str = 'GPU'):
+        super().__init__()
+        self.device = device
+
     def run(self):
         try:
             release = choose_model_release(fetch_releases())
@@ -165,7 +173,7 @@ class ModelDownloadWorker(QThread):
                 raise RuntimeError('No verified model ZIP published in project Releases yet')
             directory = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'NpuVideoUpscaler' / 'Downloads'
             archive = download_installer(release, directory)
-            self.completed.emit(str(install_model_zip(archive)))
+            self.completed.emit(str(install_model_zip(archive, device=self.device)))
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -287,7 +295,7 @@ class MainWindow(QMainWindow):
         """Change the suggested name only when the user has not edited it."""
         if hasattr(self, 'start_btn'):
             self.start_btn.setText('先頭60秒を試す' if self.preview.isChecked()
-                                   else 'NPUで変換を開始')
+                                   else f'{self.device_combo.currentData()}で変換を開始')
         current = self.destination.text()
         if not self.source.text():
             return
@@ -360,19 +368,19 @@ class MainWindow(QMainWindow):
         answer = QMessageBox.question(
             self, 'AI超解像モデルのセットアップ',
             'GitHub Releasesから試験用BSRGANx2モデルをダウンロードしますか？\\n'
-            'SHA-256を検証し、モデルがNPUでコンパイルできた場合のみ\\n'
+            'SHA-256を検証し、選択したGPU/NPUでコンパイルできた場合のみ\\n'
             'インストールします。CPU/GPUへの自動切替は行いません。',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if answer != QMessageBox.StandardButton.Yes:
             self.settings.setValue('promptModelSetup', False)
             return
-        self.model_download_worker = ModelDownloadWorker()
+        self.model_download_worker = ModelDownloadWorker(self.device_combo.currentData())
         self.model_download_worker.completed.connect(self._model_ready)
         self.model_download_worker.failed.connect(self._model_setup_failed)
         self.start_btn.setEnabled(False)
         self.model_download_btn.setEnabled(False)
         self.model_setup_btn.setEnabled(False)
-        self.status.setText('公式モデルをダウンロードしてNPU上で検証しています…')
+        self.status.setText('公式モデルをダウンロードして選択中のデバイスで検証しています…')
         self.model_download_worker.start()
 
     def install_model_package_dialog(self):
@@ -387,16 +395,16 @@ class MainWindow(QMainWindow):
             self, 'モデルZIPの確認',
             'NPU Video Upscaler公式配布物のZIPだけを使用してください。\\n'
             '内蔵チェックサムは破損検出用で、配布元の真正性は保証しません。\\n'
-            'Intel NPUで検証してインストールしますか？',
+            '選択したGPU/NPUで検証してインストールしますか？',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.model_setup_worker = ModelInstallWorker(Path(archive))
+        self.model_setup_worker = ModelInstallWorker(Path(archive), self.device_combo.currentData())
         self.model_setup_worker.completed.connect(self._model_ready)
         self.model_setup_worker.failed.connect(self._model_setup_failed)
         self.model_setup_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
-        self.status.setText('モデルを検証しNPUでコンパイルしています…')
+        self.status.setText('モデルを検証し選択中のデバイスでコンパイルしています…')
         self.model_setup_worker.start()
 
     def _model_ready(self, model_path):
@@ -405,14 +413,14 @@ class MainWindow(QMainWindow):
         self.start_btn.setEnabled(True)
         self.model_setup_btn.setEnabled(True)
         self.model_download_btn.setEnabled(True)
-        self.status.setText('NPUモデルの設定が完了しました。変換する動画を選択してください。')
+        self.status.setText('AIモデルの設定が完了しました。変換する動画を選択してください。')
 
     def _model_setup_failed(self, message):
         self.start_btn.setEnabled(True)
         self.model_setup_btn.setEnabled(True)
         self.model_download_btn.setEnabled(True)
         self.status.setText('AIモデルの設定に失敗しました。詳細はエラー通知で確認できます。')
-        QMessageBox.warning(self, 'NPUモデルの設定に失敗', message)
+        QMessageBox.warning(self, 'AIモデルの設定に失敗', message)
 
     def _job_busy(self):
         return self.worker is not None and self.worker.isRunning()
@@ -485,7 +493,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'FFmpegが必要です', str(exc))
             return
         if self._model_busy():
-            QMessageBox.warning(self, 'モデルのセットアップ中', 'NPUの検証が完了するまでお待ちください。')
+            QMessageBox.warning(self, 'モデルのセットアップ中', 'モデルの検証が完了するまでお待ちください。')
             return
         if self.worker and self.worker.isRunning():
             return
@@ -495,7 +503,8 @@ class MainWindow(QMainWindow):
         self.worker = Worker(Path(self.source.text()), Path(self.model.text()),
                              Path(self.destination.text()),
                              preview_seconds=60 if self.preview.isChecked() else None,
-                             optimize_tiles=self.optimize_tiles.isChecked())
+                             optimize_tiles=self.optimize_tiles.isChecked(),
+                             device=self.device_combo.currentData())
         self._started_at = time.monotonic()
         self._progress_started_at = None
         self._progress_done = 0
@@ -507,7 +516,7 @@ class MainWindow(QMainWindow):
         self.worker.cancelled.connect(lambda: self.finish('キャンセルしました'))
         self.start_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
-        self.status.setText('NPUを準備して変換しています…')
+        self.status.setText(f'{self.device_combo.currentData()}を準備して変換しています…')
         self.bar.setRange(0, 0)
         self.bar.setFormat('%p%')
         self.progress_label.setText('進捗：準備中｜経過：0秒｜残り：計算中')
@@ -547,7 +556,7 @@ class MainWindow(QMainWindow):
     def cancel_job(self):
         if self.worker:
             self.worker.cancel_flag.set()
-            self.status.setText('現在のNPU処理が終わり次第キャンセルします…')
+            self.status.setText('現在のGPU/NPU処理が終わり次第キャンセルします…')
 
     def finish(self, message):
         if message.startswith('失敗：') and len(message) > 160:

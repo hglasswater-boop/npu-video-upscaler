@@ -76,3 +76,13 @@ Do not rely on this build to preserve HDR, VFR timestamps, subtitles, non-MP4-co
 MP4/MKV動画を1本、アプリ画面へドラッグ＆ドロップして選べます。先頭60秒プレビューの保存先候補も入ります。手動の保存先は保持し、変換はボタンで開始します。複数ファイルやフォルダー、変換中の入力差し替えは受け付けません。
 
 Qtイベント・日本語/UNCパス・不正なドロップを回帰テストし、Windows CIで検証します。Explorerから配布版への実際のドロップ操作は実機未検証です。NPU専用推論、音声保持、FFmpegセットアップと自動更新の仕様を維持しています。
+
+
+## v0.2.0a10 — Intel Arc GPU default (experimental)
+
+- **AI super-resolution runs on OpenVINO GPU by default**, targeting Intel Core Ultra 5 125H's integrated Intel Arc graphics. The former NPU-only engine is still available as an explicit power-saving choice in the Japanese UI.
+- Device selection persists in app settings. New model ZIP installations compile-test on the selected accelerator, and conversions consistently use that same selected device. CPU/AUTO/NPU are **not** automatic fallback destinations.
+- The existing BSRGANx2 weight-compressed model is reused without loss of image quality from deliberately switching to a smaller model. Verified cached BSRGAN may be reshaped to 128px tiles on the GPU; its GPU compilation and speed on the physical 125H **remain unverified**.
+- Existing FFmpeg publisher-direct consent setup, SHA256 pin, offline media conversion, 60-second preview, audio copy, and release updater are retained.
+- **Hardware verification required:** before claiming a speedup, run a short ~5-second 1080p clip on the actual Intel GPU and record device visibility, compile result, effective fps, output/audio integrity, and visual quality. See docs/gpu-migration.md.
+- This is an experimental GPU capability release; speed may still be unacceptable. Follow-on work includes GPU-tuned FP16 model and Intel Quick Sync encoder after profiling.
