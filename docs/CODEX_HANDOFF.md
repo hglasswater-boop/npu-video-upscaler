@@ -1,4 +1,4 @@
-# Codex 引き継ぎノート — NPU Video Upscaler
+> **2026-10-11 GPU移行:** ユーザーは追加のNPUベンチマークを待たず、Intel Arc GPUを標準推論先とすることを決定しました。NPUは任意選択の省電力モード。Issue #23、docs/gpu-migration.md、feat/gpu-default-upscaling ブランチを最優先。CPU/AUTOフォールバック禁止。GPU実機性能と既存BSRGANモデルのGPU互換性は未確認。\n\n# Codex 引き継ぎノート — NPU Video Upscaler
 
 ## 2026-10-11 更新（以下のa5時点の本文より優先）
 
