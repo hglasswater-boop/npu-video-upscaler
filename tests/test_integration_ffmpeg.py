@@ -44,8 +44,16 @@ def test_real_ffmpeg_audio_is_copied_and_resolution_doubled(monkeypatch, tmp_pat
     source, xml = setup_input(tmp_path)
     monkeypatch.setattr(pipeline, 'load_npu_model', lambda path: (NearestNeighborModel(), ModelShape(24, 32, 2)))
     dest = tmp_path / 'export.mp4'
-    frames = pipeline.run_video(source, xml, dest)
+    detailed = []
+    frames = pipeline.run_video(source, xml, dest,
+                                detail_progress=lambda *args: detailed.append(args))
     assert frames == 24
+    assert detailed[0] == (0, 24, 0, 0)
+    tiles = detailed[1][3]
+    assert tiles > 0
+    assert detailed[-1] == (23, 24, tiles, tiles)
+    assert all(0 <= done < 24 and total == 24 and 0 <= tile <= count
+               for done, total, tile, count in detailed)
     output = json.loads(subprocess.check_output([
         'ffprobe', '-v', 'error', '-show_streams', '-of', 'json', str(dest)
     ]))

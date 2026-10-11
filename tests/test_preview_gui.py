@@ -119,6 +119,7 @@ def test_unknown_total_and_cancel_keep_honest_progress(win, monkeypatch):
     text = win.progress_label.text()
     win.finish('キャンセルしました')
     assert win.progress_label.text() == text
+    assert win.bar.maximum() > 0
 
 
 def test_worker_throttles_tile_signals_but_delivers_first_and_last(monkeypatch, qt_app, tmp_path):
