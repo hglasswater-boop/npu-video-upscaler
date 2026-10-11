@@ -98,6 +98,7 @@ def build_ui(w, prepared_model=None):
     if prepared_model:
         w.model.setText(str(prepared_model))
     w.preview.toggled.connect(w._suggest_output)
+    w.preview.setChecked(True)
     w.source.textChanged.connect(w._suggest_output)
     w.source.textChanged.connect(w._refresh_guidance)
     w.model.textChanged.connect(w._refresh_guidance)
