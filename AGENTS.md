@@ -1,4 +1,4 @@
-# Repository instructions for Codex
+> **方針更新 2026-10-11:** GPU（Intel Arc）を標準推論先とし、NPUは明示選択できる省電力モードとして残す。CPU/AUTOへの自動フォールバック禁止。旧NPU-only指示よりユーザーの最新方針と docs/gpu-migration.md / Issue #23 を優先。\n\n# Repository instructions for Codex
 
 Read [docs/CODEX_HANDOFF.md](docs/CODEX_HANDOFF.md) at the start of a task. Also read the issue, relevant sources, tests and existing CI workflows. The handoff is a dated snapshot; **verify current GitHub state** and do not assume branches or issue statuses are still unchanged.
 
