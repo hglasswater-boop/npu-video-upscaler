@@ -1,5 +1,17 @@
 # Codex 引き継ぎノート — NPU Video Upscaler
 
+## 2026-10-11 更新（以下のa5時点の本文より優先）
+
+公開済み最新版はa9。#15はa6のUTF-8 ffprobe読み取り修正と段階別診断で解決、
+続く微小なFPS差による解析拒否はa8で修正。a7はドロップ、a9はタイル単位の進捗。
+#8は実機a8→a9のGUI更新・設定保持で確認済み。#3は未完了。
+Core Ultra 5 125H、OpenVINO2026.4.1、NPUドライバー32.0.100.4724で実NPU推論と
+短い合成動画の音声保持は確認済み。1080p60秒完走・主観画質・音声同期・電力は未検証。
+利用者は今後のアプリ更新/インストール操作を承認済みで、a9変換を停止して速度改善を
+優先することも承認済み。軽量モデルには切り替えず現在のBSRGANの画質を優先する。
+perf/npu-throughputでa10を検証中。仕様と実測は[npu-throughput.md](npu-throughput.md)。
+公開・インストール済み扱いにする前に現行CI・Release・実機状態を再確認する。
+
 > 状態スナップショット: 2026-10-11。作業開始時には main、Issues、PR、Releases、CIを必ず再取得すること。  
 > リポジトリ: https://github.com/hglasswater-boop/npu-video-upscaler  
 > Codexの永続ガイド: [../AGENTS.md](../AGENTS.md)

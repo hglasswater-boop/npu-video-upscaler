@@ -1,5 +1,13 @@
 # NPU Video Upscaler — experimental alpha
 
+## v0.2.0a10（同じBSRGANモデルの処理効率改善）
+
+- 検証済みのBSRGANモデルでは256px以上の縦横を持つ動画を128pxタイルで処理し、重複計算を削減します。モデルの重み・量子化精度、NPU専用推論を維持します。
+- 詳細設定の「大きいタイルで処理を効率化（BSRGAN）」で従来の48px処理に戻せます。手動モデル・小さい動画は従来の形状を使います。
+- 実機Core Ultra 5 125H、同一1080pフレーム各2回の中央値で60.79秒→35.90秒（約1.69倍）。全60秒の完走時間や同等画質を保証する数値ではありません。タイルの周囲が変わるため画素差があります。詳細は[npu-throughput.md](https://github.com/hglasswater-boop/npu-video-upscaler/blob/main/docs/npu-throughput.md)。
+- 拡大タイルのNPUコンパイルをユーザー別にキャッシュします。失敗は診断ログに記録し、CPU/GPUや別形状へ自動フォールバックしません。
+- 60秒プレビュー、音声コピー、進捗、キャンセル時の原本・既存出力の保護、更新を維持します。Windows CIの模擬推論と実機計測を区別しています。
+
 ## v0.2.0a9（フレーム処理中の詳細進捗）
 
 - 1フレームの完了を待たず、実際に処理したタイル数から進捗を更新します。全体の割合を小数3桁で表示し、0%のまま動いていないように見える問題を改善しました。
@@ -20,7 +28,7 @@ This prerelease is an **early Windows 11 x64 test build**, *not a validated fini
 - SHA-256 sums: `SHA256SUMS.txt`.
 - On launch, the app can check GitHub Releases for new versions and safely download a verified installer with your approval.
 
-**Important prerequisites:** use the app's consent-based publisher-direct FFmpeg setup and select a compatible **static-shape OpenVINO super-resolution model**. The installer **does not bundle an AI model**, Intel NPU driver or FFmpeg. Conversion on Core Ultra 5 125H has **not been hardware validated**. This build is **unsigned** and may trigger a Windows SmartScreen warning.
+**Important prerequisites:** use the app's consent-based publisher-direct FFmpeg setup and select a compatible **static-shape OpenVINO super-resolution model**. The installer **does not bundle an AI model**, Intel NPU driver or FFmpeg. Core Ultra 5 125H NPU compilation/inference and short synthetic clips have physical evidence; full 1080p 60-second completion and subjective quality/audio sync remain unverified (#3). This build is **unsigned** and may trigger a Windows SmartScreen warning.
 
 For requirements and limitations, see the [README](https://github.com/hglasswater-boop/npu-video-upscaler#readme), [model validation issue #3](https://github.com/hglasswater-boop/npu-video-upscaler/issues/3), and [release/update design](https://github.com/hglasswater-boop/npu-video-upscaler/blob/main/docs/releases-and-updates.md).
 
