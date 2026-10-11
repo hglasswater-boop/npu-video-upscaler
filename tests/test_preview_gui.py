@@ -40,12 +40,16 @@ def test_full_video_is_default_and_preview_worker_passes_duration(monkeypatch, w
     assert win.start_btn.text() == '先頭60秒を試す'
     observed = {}
 
-    def fake_run_video(source, model, destination, progress, cancel, preview_seconds):
+    def fake_run_video(source, model, destination, progress, cancel, preview_seconds, stage_changed):
         observed['seconds'] = preview_seconds
+        stage_changed('NPUモデル読み込み')
         return 3
 
     monkeypatch.setattr(gui, 'run_video', fake_run_video)
     worker = gui.Worker(tmp_path / 'input.mp4', tmp_path / 'model.xml',
                         tmp_path / 'output.mp4', preview_seconds=60)
+    stages = []
+    worker.stage_changed.connect(stages.append)
     worker.run()
     assert observed['seconds'] == 60
+    assert stages == ['NPUモデル読み込み']
