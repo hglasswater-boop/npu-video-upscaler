@@ -68,6 +68,7 @@ class QMessageBox(QtMessageBox):
 
 class Worker(QThread):
     progress_changed = Signal(int, int)
+    stage_changed = Signal(str)
     succeeded = Signal(int)
     failed = Signal(str)
     cancelled = Signal()
@@ -83,7 +84,8 @@ class Worker(QThread):
         try:
             frames = run_video(self.source, self.model, self.destination,
                                lambda done, total: self.progress_changed.emit(done, total or 0),
-                               self.cancel_flag, preview_seconds=self.preview_seconds)
+                               self.cancel_flag, preview_seconds=self.preview_seconds,
+                               stage_changed=self.stage_changed.emit)
             self.succeeded.emit(frames)
         except JobCancelled:
             self.cancelled.emit()
@@ -452,6 +454,7 @@ class MainWindow(QMainWindow):
         self.worker.progress_changed.connect(self.update_progress)
         self.worker.succeeded.connect(lambda frames: self.finish(f'完了：{frames} フレーム'))
         self.worker.failed.connect(lambda message: self.finish(f'失敗：{message}'))
+        self.worker.stage_changed.connect(lambda stage: self.status.setText(f'{stage}中…'))
         self.worker.cancelled.connect(lambda: self.finish('キャンセルしました'))
         self.start_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)

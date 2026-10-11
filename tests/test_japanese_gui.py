@@ -30,9 +30,9 @@ def test_major_labels_in_japanese(window):
     assert "更新" in win.update_btn.text()
     assert "起動時" in win.auto_update.text()
     assert "先頭60秒" in win.preview.text()
-    assert win.start_btn.text() == "NPUで変換を開始"
-    win.preview.setChecked(True)
     assert win.start_btn.text() == "先頭60秒を試す"
+    win.preview.setChecked(False)
+    assert win.start_btn.text() == "NPUで変換を開始"
     assert win.cancel_btn.text() == "キャンセル"
 
 

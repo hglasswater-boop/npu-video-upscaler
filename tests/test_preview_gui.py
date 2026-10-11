@@ -24,28 +24,49 @@ def win(monkeypatch, qt_app):
 
 def test_filename_suggestion_tracks_preview_but_never_replaces_manual_output(win, tmp_path):
     win.source.setText(str(tmp_path / 'movie.mkv'))
-    assert win.destination.text().endswith('movie_upscaled.mp4')
-    win.preview.setChecked(True)
     assert win.destination.text().endswith('movie_upscaled_preview60.mp4')
+    win.preview.setChecked(False)
+    assert win.destination.text().endswith('movie_upscaled.mp4')
     win.destination.setText(str(tmp_path / 'my_output.mp4'))
     win.preview.setChecked(False)
     assert win.destination.text().endswith('my_output.mp4')
 
 
-def test_full_video_is_default_and_preview_worker_passes_duration(monkeypatch, win, tmp_path):
+def test_preview_is_default_and_preview_worker_passes_duration(monkeypatch, win, tmp_path):
     from npu_upscaler import gui
-    assert not win.preview.isChecked()
+    assert win.preview.isChecked()
+    assert win.start_btn.text() == '先頭60秒を試す'
+    win.preview.setChecked(False)
     assert win.start_btn.text() == 'NPUで変換を開始'
     win.preview.setChecked(True)
     assert win.start_btn.text() == '先頭60秒を試す'
     observed = {}
 
-    def fake_run_video(source, model, destination, progress, cancel, preview_seconds):
+    def fake_run_video(source, model, destination, progress, cancel, preview_seconds, stage_changed):
         observed['seconds'] = preview_seconds
+        stage_changed('NPUモデル読み込み')
         return 3
 
     monkeypatch.setattr(gui, 'run_video', fake_run_video)
     worker = gui.Worker(tmp_path / 'input.mp4', tmp_path / 'model.xml',
                         tmp_path / 'output.mp4', preview_seconds=60)
+    stages = []
+    worker.stage_changed.connect(stages.append)
     worker.run()
     assert observed['seconds'] == 60
+    assert stages == ['NPUモデル読み込み']
+
+
+def test_worker_emits_japanese_failure_and_log_path(monkeypatch, qt_app, tmp_path):
+    from npu_upscaler import gui
+    from npu_upscaler.pipeline import VideoJobError
+    log = tmp_path / 'diagnosis.log'
+    def fail(*a, **k):
+        raise VideoJobError('NPUモデル読み込み', log)
+    monkeypatch.setattr(gui, 'run_video', fail)
+    worker = gui.Worker(tmp_path / 'input.mp4', tmp_path / 'model.xml', tmp_path / 'out.mp4')
+    messages = []
+    worker.failed.connect(messages.append)
+    worker.run()
+    assert 'NPUモデル読み込みで失敗しました' in messages[0]
+    assert str(log) in messages[0]

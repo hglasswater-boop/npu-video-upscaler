@@ -7,7 +7,7 @@ This prerelease is an **early Windows 11 x64 test build**, *not a validated fini
 - SHA-256 sums: `SHA256SUMS.txt`.
 - On launch, the app can check GitHub Releases for new versions and safely download a verified installer with your approval.
 
-**Important prerequisites:** install FFmpeg / ffprobe separately and supply a licensed, compatible **static-shape OpenVINO super-resolution model**. The installer **does not bundle an AI model**, Intel NPU driver or FFmpeg. Conversion on Core Ultra 5 125H has **not been hardware validated**. This build is **unsigned** and may trigger a Windows SmartScreen warning.
+**Important prerequisites:** use the app's consent-based publisher-direct FFmpeg setup and select a compatible **static-shape OpenVINO super-resolution model**. The installer **does not bundle an AI model**, Intel NPU driver or FFmpeg. Conversion on Core Ultra 5 125H has **not been hardware validated**. This build is **unsigned** and may trigger a Windows SmartScreen warning.
 
 For requirements and limitations, see the [README](https://github.com/hglasswater-boop/npu-video-upscaler#readme), [model validation issue #3](https://github.com/hglasswater-boop/npu-video-upscaler/issues/3), and [release/update design](https://github.com/hglasswater-boop/npu-video-upscaler/blob/main/docs/releases-and-updates.md).
 
@@ -41,3 +41,12 @@ Do not rely on this build to preserve HDR, VFR timestamps, subtitles, non-MP4-co
 - Windowsの一時的なフォルダーロックには限定回数の再試行を実施し、検証完了まで不完全なセットアップ結果を有効扱いしません。以前の失敗で残った不完全なキャッシュも再試行時に復旧を試みます。
 - アプリの主要UI、FFmpeg・AIモデル・更新に関する確認画面、エラー表示を日本語化しました。インストーラの表示言語も日本語に対応しました。
 - v0.2.0a4→v0.2.0a5はアプリの更新確認からアップデートできます。Windows 11の実機更新・Core Ultra 5 125HのNPU推論は引き続き検証が必要です。
+
+## v0.2.0a6（0%失敗の診断・ffprobe文字コード修正）
+
+- WindowsのCP932環境でUTF-8のffprobe出力が読み取りスレッドを停止させ、JSON解析へNoneを渡す障害を実データで再現し修正しました。出力をバイト列で取得し、呼び出し元でUTF-8として解析します。
+- 不正・空・取得不能な動画情報を拒否し、タイムアウト・終了コード・stderrを診断に保持します。
+- 処理段階と例外連鎖のスタックトレースを `%LOCALAPPDATA%/NpuVideoUpscaler/Logs` に保存します。入力・モデル・出力のパスをマスクし、映像・音声・JSON全文は記録しません。
+- 日本語の段階表示と短い失敗通知からログ保存先を確認できます。
+- 引き継ぎ仕様に合わせ、先頭60秒プレビューを初期選択にしました。全編出力はチェックを外して選べます。
+- 報告動画は文字コード修正後、既存のCFR検査で拒否されました。当該動画の変換成功、実機NPU推論・画質、実機の更新GUI操作は別途検証が必要です。CPU/GPU自動フォールバックはありません。

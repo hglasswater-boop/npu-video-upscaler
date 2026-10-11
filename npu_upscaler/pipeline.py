@@ -13,10 +13,19 @@ import numpy as np
 from .media import decoder_command, encoder_command, preview_frame_cap, probe_video
 from .media_tools import resolve_media_tools
 from .npu import load_npu_model, upscale_frame, UpscaleCancelled
+from .diagnostics import save_failure
 
 
 class JobCancelled(Exception):
     """Processing cancelled by user."""
+
+
+class VideoJobError(RuntimeError):
+    def __init__(self, stage: str, log_path: Path | None):
+        self.stage, self.log_path = stage, log_path
+        message = f'{stage}で失敗しました。'
+        message += f'\n診断ログ：{log_path}' if log_path else '\n診断ログを保存できませんでした。保存先の空き容量・権限を確認してください。'
+        super().__init__(message)
 
 
 def check_not_cancelled(flag: Event) -> None:
@@ -91,17 +100,39 @@ def preview_progress_total(info) -> int:
 
 def run_video(source: Path, model: Path, destination: Path,
               progress: Callable[[int, int | None], None] = lambda done, total: None,
-              cancel: Event | None = None, preview_seconds: int | None = None) -> int:
+              cancel: Event | None = None, preview_seconds: int | None = None,
+              stage_changed: Callable[[str], None] = lambda stage: None) -> int:
+    stage = '入力検査'
+    def set_stage(value):
+        nonlocal stage
+        stage = value
+        stage_changed(value)
+    try:
+        return _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage)
+    except JobCancelled:
+        raise
+    except Exception as exc:
+        log_path = save_failure(exc, stage, (source, model, destination,
+                                            Path(model).with_suffix('.bin')), preview_seconds)
+        raise VideoJobError(stage, log_path) from exc
+
+
+def _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage):
+    set_stage('入力検査')
     preview_seconds = preview_limit_seconds(preview_seconds)
     cancel = cancel if cancel is not None else Event()
     source, model, destination = Path(source), Path(model), Path(destination)
     validate_paths(source, model, destination)
+    set_stage('FFmpeg準備')
     media_tools = resolve_media_tools()
     check_not_cancelled(cancel)
+    set_stage('動画情報解析')
     info = probe_video(source, ffprobe_executable=media_tools.ffprobe)
     max_frames = preview_frame_cap(info.fps) if preview_seconds is not None else None
     progress_total = preview_progress_total(info) if preview_seconds is not None else info.total_frames
+    set_stage('NPUモデル読み込み')
     compiled, shape = load_npu_model(model)
+    set_stage('変換準備')
     temporary = temporary_output_path(destination)
     decoder = encoder = None
     count = 0
@@ -124,17 +155,21 @@ def run_video(source: Path, model: Path, destination: Path,
 
             while True:
                 check_not_cancelled(cancel)
+                set_stage('デコード')
                 pixels = _read_frame(decoder.stdout, frame_size)
                 if pixels is None:
                     break
                 frame = np.frombuffer(pixels, dtype=np.uint8).reshape(info.height, info.width, 3)
+                set_stage('NPU推論')
                 try:
                     upscaled = upscale_frame(frame, shape, infer_tile, cancel.is_set)
                 except UpscaleCancelled as exc:
                     raise JobCancelled(str(exc)) from exc
+                set_stage('エンコード')
                 encoder.stdin.write(upscaled.tobytes())
                 count += 1
                 progress(count, progress_total)
+            set_stage('エンコード')
             encoder.stdin.close()
             decode_status = decoder.wait()
             encode_status = encoder.wait()
@@ -146,9 +181,14 @@ def run_video(source: Path, model: Path, destination: Path,
             check_not_cancelled(cancel)
             if count == 0 or not temporary.is_file() or temporary.stat().st_size == 0:
                 raise RuntimeError('Video produced no output frames')
+            set_stage('出力確定')
             os.replace(temporary, destination)
             return count
         finally:
+            # Preserve the processing stage on failure; label cleanup only on success.
+            import sys
+            if sys.exc_info()[0] is None:
+                set_stage('後処理')
             _stop(decoder)
             _stop(encoder)
             _remove_temporary(temporary)
