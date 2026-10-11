@@ -1,10 +1,11 @@
 # Quick preview: first 60 seconds — Issue #6
 
 ## User flow
-- Select a source MP4/MKV and model, then choose **Full video** (default) or **First 60 seconds (quick test)**.
+- Select a source MP4/MKV and model. **First 60 seconds (quick test)** is selected by default; uncheck it for **Full video**.
 - When output has not been manually edited, suggest `<source>_upscaled_preview60.mp4` for preview; full export suggests `<source>_upscaled.mp4`.
 - Start saves an independent MP4 file in the same folder as the input by default. Never modify the input; existing output is replaced only after a successful export, as before.
 - Display preview progress as completed frames out of at most 60 seconds of the source's **nominal CFR**. If the input video is shorter, process only available frames. Standard cancellation remains available.
+- Detailed tile progress, elapsed time and estimated remaining time stay visible separately from the processing stage; see [detailed progress](detailed-progress.md).
 - Save compatible source audio as stream copy, and cap the output timeline at 60 seconds; source with no audio remains silent.
 - This is AI **NPU inference** with the selected model, not a separate preview-quality scaler or CPU fallback. External compatible OpenVINO IR is still required.
 

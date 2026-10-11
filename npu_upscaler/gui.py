@@ -21,6 +21,12 @@ from .updates import choose_update, download_installer, fetch_releases
 from . import __version__
 
 
+def _duration(seconds):
+    hours, rest = divmod(max(0, round(seconds)), 3600)
+    minutes, seconds = divmod(rest, 60)
+    return (f'{hours}時間' if hours else '') + (f'{minutes}分' if minutes else '') + f'{seconds}秒'
+
+
 class QMessageBox(QtMessageBox):
     """Japanese actions even when the Qt Japanese translation pack is absent."""
 
@@ -68,6 +74,7 @@ class QMessageBox(QtMessageBox):
 
 class Worker(QThread):
     progress_changed = Signal(int, int)
+    detail_progress_changed = Signal(int, int, int, int)
     stage_changed = Signal(str)
     succeeded = Signal(int)
     failed = Signal(str)
@@ -81,11 +88,19 @@ class Worker(QThread):
         self.cancel_flag = Event()
 
     def run(self):
+        last_detail_at = float('-inf')
+        def report_detail(done, total, tile_done, tile_total):
+            nonlocal last_detail_at
+            now = time.monotonic()
+            if tile_done in (0, tile_total) or now - last_detail_at >= 0.25:
+                last_detail_at = now
+                self.detail_progress_changed.emit(done, total or 0, tile_done, tile_total)
         try:
             frames = run_video(self.source, self.model, self.destination,
                                lambda done, total: self.progress_changed.emit(done, total or 0),
                                self.cancel_flag, preview_seconds=self.preview_seconds,
-                               stage_changed=self.stage_changed.emit)
+                               stage_changed=self.stage_changed.emit,
+                               detail_progress=report_detail)
             self.succeeded.emit(frames)
         except JobCancelled:
             self.cancelled.emit()
@@ -480,7 +495,10 @@ class MainWindow(QMainWindow):
                              Path(self.destination.text()),
                              preview_seconds=60 if self.preview.isChecked() else None)
         self._started_at = time.monotonic()
+        self._progress_started_at = None
+        self._progress_done = 0
         self.worker.progress_changed.connect(self.update_progress)
+        self.worker.detail_progress_changed.connect(self.update_detailed_progress)
         self.worker.succeeded.connect(lambda frames: self.finish(f'完了：{frames} フレーム'))
         self.worker.failed.connect(lambda message: self.finish(f'失敗：{message}'))
         self.worker.stage_changed.connect(lambda stage: self.status.setText(f'{stage}中…'))
@@ -489,15 +507,40 @@ class MainWindow(QMainWindow):
         self.cancel_btn.setEnabled(True)
         self.status.setText('NPUを準備して変換しています…')
         self.bar.setRange(0, 0)
+        self.bar.setFormat('%p%')
+        self.progress_label.setText('進捗：準備中｜経過：0秒｜残り：計算中')
         self.worker.start()
 
     def update_progress(self, done, total):
+        self.update_detailed_progress(done, total, 0, 0)
+
+    def update_detailed_progress(self, done, total, tile_done, tile_total):
+        now = time.monotonic()
+        self._progress_done = done
+        if tile_total and getattr(self, '_progress_started_at', None) is None:
+            self._progress_started_at = now
+        completed = done + (tile_done / tile_total if tile_total else 0)
+        frames = f'{done} / 約{total} フレーム' if total else f'{done} フレーム（総数不明）'
+        parts = []
         if total:
-            self.bar.setRange(0, max(done, total))
-            self.bar.setValue(done)
-            self.status.setText(f'{done} / 約{total} フレーム')
+            percentage = min(99.999, max(0, completed / max(total, completed) * 100))
+            parts.append(f'{percentage:.3f}%')
+            self.bar.setRange(0, 100000)
+            self.bar.setValue(int(percentage * 1000))
+            self.bar.setFormat(f'{percentage:.3f}%')
         else:
-            self.status.setText(f'{done} フレーム')
+            self.bar.setRange(0, 0)
+        parts.append(frames)
+        if tile_total:
+            parts.append(f'現在のフレーム：{tile_done} / {tile_total} タイル')
+        parts.append(f'経過：{_duration(now - getattr(self, "_started_at", now))}')
+        started = getattr(self, '_progress_started_at', None)
+        if total and done >= 1 and started is not None and now > started:
+            remaining = max(0, total - completed) * (now - started) / completed
+            parts.append(f'残り目安：{_duration(remaining)}')
+        else:
+            parts.append('残り：計算中')
+        self.progress_label.setText('｜'.join(parts))
 
     def cancel_job(self):
         if self.worker:
@@ -512,8 +555,17 @@ class MainWindow(QMainWindow):
             message += f'（処理時間：{time.monotonic() - self._started_at:.1f}秒）'
         self.start_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
-        self.bar.setRange(0, 1)
-        self.bar.setValue(1 if message.startswith('完了：') else 0)
+        if message.startswith('完了：'):
+            self.bar.setRange(0, 100000)
+            self.bar.setValue(100000)
+            self.bar.setFormat('100.000%')
+            self.progress_label.setText(
+                f'100.000%｜{getattr(self, "_progress_done", 0)} フレーム｜'
+                f'経過：{_duration(time.monotonic() - getattr(self, "_started_at", time.monotonic()))}')
+        elif self.bar.maximum() == 0:
+            self.bar.setRange(0, 1)
+            self.bar.setValue(0)
+            self.bar.setFormat('中断')
         self.status.setText(message)
         if self.pending_update:
             update, self.pending_update = self.pending_update, None

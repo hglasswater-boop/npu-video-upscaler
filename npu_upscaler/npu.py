@@ -76,13 +76,18 @@ def load_npu_model(model_path: Path, core=None):
 
 def upscale_frame(frame: np.ndarray, model_shape: ModelShape,
                   infer_tile: Callable[[np.ndarray], np.ndarray],
-                  should_cancel: Callable[[], bool] = lambda: False) -> np.ndarray:
+                  should_cancel: Callable[[], bool] = lambda: False,
+                  tile_progress: Callable[[int, int], None] = lambda done, total: None) -> np.ndarray:
     if frame.ndim != 3 or frame.shape[2] != 3 or frame.dtype != np.uint8:
         raise ValueError('Input frame must be HxWx3 RGB uint8')
     h, w = frame.shape[:2]
     scale = model_shape.scale
     result = np.empty((h * scale, w * scale, 3), dtype=np.uint8)
     padded = np.pad(frame, ((8, 8), (8, 8), (0, 0)), mode='edge')
+    total_tiles = ((h + model_shape.core_height - 1) // model_shape.core_height
+                   * ((w + model_shape.core_width - 1) // model_shape.core_width))
+    completed_tiles = 0
+    tile_progress(0, total_tiles)
     for y in range(0, h, model_shape.core_height):
         for x in range(0, w, model_shape.core_width):
             if should_cancel():
@@ -104,4 +109,6 @@ def upscale_frame(frame: np.ndarray, model_shape: ModelShape,
                        8 * scale:(8 + crop_width) * scale]
             result[y * scale:(y + crop_height) * scale,
                    x * scale:(x + crop_width) * scale] = np.rint(np.clip(core * 255.0, 0, 255)).astype(np.uint8)
+            completed_tiles += 1
+            tile_progress(completed_tiles, total_tiles)
     return result

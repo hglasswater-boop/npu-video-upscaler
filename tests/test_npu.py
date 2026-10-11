@@ -39,6 +39,15 @@ def test_tiles_cancel_before_inference():
         upscale_frame(np.zeros((18, 34, 3), dtype=np.uint8), ModelShape(24, 32, 4), fake_inference, lambda: True)
 
 
+def test_tile_progress_counts_real_completed_tiles_without_changing_pixels():
+    frame = np.arange(19 * 35 * 3, dtype=np.uint8).reshape(19, 35, 3)
+    values = []
+    result = upscale_frame(frame, ModelShape(24, 32, 4), fake_inference,
+                           tile_progress=lambda done, total: values.append((done, total)))
+    assert values == [(i, 9) for i in range(10)]
+    assert np.array_equal(result, np.repeat(np.repeat(frame, 4, axis=0), 4, axis=1))
+
+
 class FakeCore:
     available_devices = ["CPU", "NPU"]
 

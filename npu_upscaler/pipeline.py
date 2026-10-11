@@ -101,14 +101,17 @@ def preview_progress_total(info) -> int:
 def run_video(source: Path, model: Path, destination: Path,
               progress: Callable[[int, int | None], None] = lambda done, total: None,
               cancel: Event | None = None, preview_seconds: int | None = None,
-              stage_changed: Callable[[str], None] = lambda stage: None) -> int:
+              stage_changed: Callable[[str], None] = lambda stage: None,
+              detail_progress: Callable[[int, int | None, int, int], None] =
+              lambda done, total, tile_done, tile_total: None) -> int:
     stage = '入力検査'
     def set_stage(value):
         nonlocal stage
         stage = value
         stage_changed(value)
     try:
-        return _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage)
+        return _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage,
+                          detail_progress)
     except JobCancelled:
         raise
     except Exception as exc:
@@ -117,7 +120,7 @@ def run_video(source: Path, model: Path, destination: Path,
         raise VideoJobError(stage, log_path) from exc
 
 
-def _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage):
+def _run_video(source, model, destination, progress, cancel, preview_seconds, set_stage, detail_progress):
     set_stage('入力検査')
     preview_seconds = preview_limit_seconds(preview_seconds)
     cancel = cancel if cancel is not None else Event()
@@ -130,6 +133,7 @@ def _run_video(source, model, destination, progress, cancel, preview_seconds, se
     info = probe_video(source, ffprobe_executable=media_tools.ffprobe)
     max_frames = preview_frame_cap(info.fps) if preview_seconds is not None else None
     progress_total = preview_progress_total(info) if preview_seconds is not None else info.total_frames
+    detail_progress(0, progress_total, 0, 0)
     set_stage('NPUモデル読み込み')
     compiled, shape = load_npu_model(model)
     set_stage('変換準備')
@@ -163,7 +167,9 @@ def _run_video(source, model, destination, progress, cancel, preview_seconds, se
                 frame = np.frombuffer(pixels, dtype=np.uint8).reshape(info.height, info.width, 3)
                 set_stage('NPU推論')
                 try:
-                    upscaled = upscale_frame(frame, shape, infer_tile, cancel.is_set)
+                    upscaled = upscale_frame(frame, shape, infer_tile, cancel.is_set,
+                                             tile_progress=lambda done, total:
+                                             detail_progress(count, progress_total, done, total))
                 except UpscaleCancelled as exc:
                     raise JobCancelled(str(exc)) from exc
                 set_stage('エンコード')
